@@ -1,0 +1,20 @@
+
+RewriteEngine On
+#RewriteBase /api/
+
+RewriteRule  ^((?:[^\/]*/)*)(c\/)((?:[^\/]*\/)*)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  exc/loader.php [L,QSA]
+RewriteRule  ^((?:[^\/]*/)*)(o\/)((?:[^\/]*\/)*)([A-Za-z0-9-_]+\.[a-z]{2,3})$  exc/loader.php [L,QSA]
+RewriteRule  ^((?:[^\/]*/)*)(a\/)([A-Za-z0-9-_\.]+\.js)$  $1/assets/js/$3 [L,QSA]
+RewriteRule  ^((?:[^\/]*/)*)(a\/)([A-Za-z0-9-_\.]+\.css)$  $1/assets/css/$3 [L,QSA]
+RewriteRule  ^((?:[^\/]*/)*)(a\/)((?:[^\/]*\/)*)([A-Za-z0-9-_\.]+\.[a-z]{2,3})$  $1/assets/$3$4 [L,QSA]
+RewriteRule  ^((?:[^\/]*/)*)(a\/)([A-Za-z0-9-_\.]+\.[a-z]{2,3})$  $1/assets/$3 [L,QSA]
+
+
+#/api/<scope>/<controller>/<action>/
+#RewriteRule api/([A-Za-z0-9-]+)/([A-Za-z0-9-]+)/([A-Za-z0-9-]+)/$ $1/api/$2.php?api-obj=$2&api-scope=$1&api-action=$3  [L,QSA]
+#RewriteRule api/([A-Za-z0-9-_]+)/([A-Za-z0-9-_]+)/$ $1/api/$2.php [L,QSA]
+
+#RewriteRule ^js/([A-Za-z0-9-_]+)/([A-Za-z0-9-_\.\/]+)$ $1/assets/js/$2 [L,QSA]
+#RewriteRule ^css/([A-Za-z0-9-_]+)/([A-Za-z0-9-_\.\/]+)$ $1/assets/css/$2 [L,QSA]
+#RewriteRule ^media/([A-Za-z0-9-_]+)/([A-Za-z0-9-_\.\/]+)$ $1/assets/media/$2 [L,QSA]
+#RewriteRule ^assets/([A-Za-z0-9-_]+)/([A-Za-z0-9-_\.\/]+)$ $1/assets/$2 [L,QSA]
