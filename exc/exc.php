@@ -4,12 +4,20 @@ namespace exc;
 
 $__here = dirname(__FILE__) . '/';
 
+if(file_exists($__here . '/exc.config.php')){
+	include_once($__here . '/exc.config.php');
+}
+if(!defined('EXC_PATH_APPS_FOLDER')){
+	define('EXC_PATH_APPS_FOLDER', dirname(__DIR__) . "/");
+}
 require_once($__here . "exc.core.php");
 require_once($__here . "exc.app.router.php");
 require_once($__here . "exc.app.php");
 require_once($__here . "exc.app.manifest.php");
 require_once($__here . "exc.session.php");
 //require_once($__here . "exc.io.files.php");
+
+
 
 spl_autoload_register(function ($class) {
 	error_log("auto_load[" . $class . "]");
@@ -278,7 +286,7 @@ class bootloader {
 		$paths = [
 			'exc'=> EXC_DIRECTORY,
 			'app'=> EXC_DIRECTORY_FOR_CONTROLLER,
-			'file'=> EXC_DIRECTORY_ROOT,
+			'file'=> EXC_DOCUMENT_ROOT,
 			'vendor'=> '',
 			'composer'=> '',
 		];

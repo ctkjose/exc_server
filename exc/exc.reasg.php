@@ -20,7 +20,7 @@ class reasg_bootloader {
 
 		define('EXC_PATH', dirname(__DIR__) . '/');
 		define('EXC_DIRECTORY', __DIR__ . '/');
-		define('EXC_DIRECTORY_ROOT', (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : '') . '/');
+		define('EXC_DOCUMENT_ROOT', (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : '') . '/');
 
 		self::setOption('mode', isset($_SERVER['SHELL']) ? self::RUN_MODE_CLI : self::RUN_MODE_WEB );
 		self::setOption('path_exc', EXC_PATH);

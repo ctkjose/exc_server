@@ -72,15 +72,15 @@ class router {
 		
 
 		$re = "((?:[^\/]*\/)*)";
-		if( preg_match('/' . $re . 'c\/((?:[^\/]*\/)*)([A-Za-z0-9-_]+)(\.([A-Za-z0-9-_]+))?/', $url, $m) ){
+		if( preg_match('/' . $re . 'c\/([A-Za-z0-9-_]+)(\.([A-Za-z0-9-_]+))?/', $url, $m) ){
 			//is a controller URL
+			print_r($m);
 			$this->route['action_type'] = 'runController';
 			$this->route['base_url'] = $m[1];
-			$this->route['resource_path'] = $m[2];
-
-			$this->route['controller_name'] = $m[3];
-			if(isset($m[4])){
-				$this->route['action'] = $m[5];
+			$this->route['resource_path'] = '';
+			$this->route['controller_name'] = $m[2];
+			if(isset($m[3])){
+				$this->route['action'] = $m[4];
 			}
 			
 			$this->loadController();

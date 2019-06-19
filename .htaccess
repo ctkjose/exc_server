@@ -1,9 +1,20 @@
+#Security
+Options -Indexes
+<files app.php>
+	order allow,deny
+	deny from all
+</files>
+<files controller.*.php>
+	order allow,deny
+	deny from all
+</files>
 
 RewriteEngine On
 #RewriteBase /api/
 
-RewriteRule  ^((?:[^\/]*/)*)(c\/)((?:[^\/]*\/)*)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  exc/loader.php [L,QSA]
-RewriteRule  ^((?:[^\/]*/)*)(o\/)((?:[^\/]*\/)*)([A-Za-z0-9-_]+\.[a-z]{2,3})$  exc/loader.php [L,QSA]
+RewriteRule  ^((?:[^\/]*/)*)(c\/)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  tests/test_router.php [L,QSA]
+
+RewriteRule  ^((?:[^\/]*/)*)(c\/)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  exc/loader.php [L,QSA]
 RewriteRule  ^((?:[^\/]*/)*)(a\/)([A-Za-z0-9-_\.]+\.js)$  $1/assets/js/$3 [L,QSA]
 RewriteRule  ^((?:[^\/]*/)*)(a\/)([A-Za-z0-9-_\.]+\.css)$  $1/assets/css/$3 [L,QSA]
 RewriteRule  ^((?:[^\/]*/)*)(a\/)((?:[^\/]*\/)*)([A-Za-z0-9-_\.]+\.[a-z]{2,3})$  $1/assets/$3$4 [L,QSA]
