@@ -92,20 +92,10 @@ class client {
 
 		self::$tplInteraction = file_get_contents(__DIR__ . '/assets/interaction.js');
 		
-		$app = \exc\controller\appController::instance();
+		$app = \exc\app::controller();
 
-		if(is_object($a) && is_a($a, 'exc\router')){
-			error_log("@client::instance() with router");
-			self::$instance->values = $a->route['values'];
-			//unset($a->route['values']);
-			$state = $a->route['state'];
-			if(is_array($state)){
-				if(isset($state['session'])){
-					self::$instance->session = $state['session'];
-				}
-				unset($a->route['state']['session']);
-			}
-		}elseif(is_array($a)){
+		if(is_array($a)){
+			
 			if(isset($a['api_json_state'])){
 				$state = json_decode($a['api_json_state'], true);
 				if(is_array($state)){
@@ -116,6 +106,8 @@ class client {
 			}
 			if(isset($a['api_json_data'])){
 				self::$instance->values = json_decode($a['api_json_data'], true);
+			}elseif(isset($a['values'])){
+				self::$instance->values = &$a['values'];
 			}
 		}else{
 			error_log("@client::instance() with no values");
@@ -156,7 +148,7 @@ class client {
 			$this->with_selector = null;
 			return $this;
 		}
-		$app = \exc\controller\appController::instance();
+		$app = \exc\app::controller();
 		$js = $this->getState();
 		
 		$app->sendJS( $js );
@@ -329,7 +321,7 @@ class client {
 	}
 	public function getState(){
 
-		$app = \exc\controller\appController::instance();
+		$app = \exc\app::controller();
 		$app->publish("appClientCommit", []);
 		
 
@@ -385,7 +377,7 @@ class client {
 	}
 	public function getState1(){
 
-		$app = \exc\controller\appController::instance();
+		$app = \exc\app::controller();
 		$app->publish("app_client_commit", []);
 
 

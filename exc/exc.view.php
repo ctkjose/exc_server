@@ -1,6 +1,6 @@
 <?php
-namespace exc\views {
-	class manager extends \exc\core\base {
+namespace exc {
+	class manager1 extends \exc\core\base {
 		public static $defaulView = null;
 		public static $options = ['paths'=>[]];
 		public static function initialize($options){
@@ -8,7 +8,8 @@ namespace exc\views {
 			if(!is_array($options)) return;
 
 			$pv = [];
-			$p = \exc\options::$values['app']['paths']['base'] . 'views/';
+			$base = EXC_PATH_BASE;
+			$p = $base . 'views/';
 
 			if(file_exists($p)){
 				$pv[] = $p;
@@ -30,7 +31,7 @@ namespace exc\views {
 			\exc\options::$values['app']['paths']['views'] = [];
 
 			//normalize paths
-			chdir(\exc\options::$values['app']['path_app']);
+			chdir($base );
 			foreach($pv as $i=>$p){
 				$p = realpath($p);
 				if($p=== false) continue;
@@ -41,79 +42,47 @@ namespace exc\views {
 			}
 
 
-			view::constantCopyValues(\exc\options::$values['app']['urls'], 'URL');
+			//view::constantCopyValues(\exc\options::$values['app']['urls'], 'URL');
 			
 			
 			if(isset($options['views.default']) && is_string($options['views.default']) && (strlen($options['views.default']) > 0)){
 				self::$options['default'] = $options['views.default'];
 			}
 
+			\exc\error_log_dump(self::$options, "view-options");
+
 		}
-		public static function getView($name){
-			///N:get a view
-			$view = null;
-			$view = view::createWithFile( self::getViewFileWithName($name), $name );
-			return $view;
-		}
-	
-		public static function createDefaultView($any = null){
-			///N:create a default template and prints its content on commit
-			///P:$view:An optional string with a view's name or an instance of \exc\ui\views\view, if non is given the 'default_page' will be loaded.
-			$view = null;
-			if( is_object($any) && is_a($any, '\exc\ui\views\view') ){
-				$view = $any;
-			}elseif( is_string($any) && (strlen($any)>0) ){ //name of a view
-				$view = view::createWithFile( self::getViewFileWithName($any), $any );
-			}
+		
 
-			if(is_null($view)) return null;
-
-			self::$defaulView = $view;
-
-			$app = \exc\controller\appController::instance();
-
-			$fn = function() use ($view, $app){
-				error_log("@viewCommit............");
-				if($view == null) return;
-				if($view->state['commited']) return;
-
-				$client = \exc\client::instance();
-				$app->publish("viewCommit", [ $view ] );
-			
-				$view->inline->write('');
-
-				$js_st = $client->getState();
-
-				$js = "<script type='text/javascript' id='excbl'>\n";
-				$js.= file_get_contents( EXC_SERVER_PATH . 'assets/app.js');
-				$js = str_replace('{{app_state}}', $js_st, $js);
-
-				$js = str_replace('{{bms}}', 'R' . sha1(\exc\session::key("BS") . '-' . session_id() ), $js);
-				$js.= "</script>";
-
-				$view->body_end->write( $js );
-
-				$app->write($view);
-			};
-			$app->on('appSendOutput', $fn);
-			//create our closure...
-	
-
-
-			return self::$defaulView;
-		}
-		public static function getDefaultView(){
-			return self::$defaulView;
-		}
 		public static function addViewFolder($path){
 			self::$options['paths'][] = $path;
 			//\exc\options::$values['app']['paths']['views'][] = $path;
 		}
-		public static function getViewFileWithName($n){
-			$paths = self::$options['paths'];
+		
+	}
+
+	class view {
+		public $state = ['name'=>'','file'=>'', 'commited'=>false, 'src'=>'', 'contents'=>['body'],'currentName'=>'body','currentContent'=>null, 'elements'=>[]];
+		public static $values =[];
+		public $pathsIncluded = [];
+		public static function load($name='default'){
+			///N:get a view
+			$view = null;
+			$view = view::createWithFile( self::getViewPathForName($name), $name );
+			return $view;
+		}
+		public static function getViewPathForName($n){
+			$base = defined('EXC_PATH_APP') ? EXC_PATH_APP : EXC_PATH_BASE;
+			$p = $base . 'views/';
+			
+			$paths = [
+				$p = $base . 'views/'
+			];
+
 			$n = strtolower($n);
 			foreach($paths as $p){
 				$f = $p . 'view.'. $n . '.php';
+				error_log("getViewPathForName $f");
 				if(file_exists($f)) return $f;
 
 				$f = $p . 'view.'. $n . '.html';
@@ -121,32 +90,8 @@ namespace exc\views {
 				if(file_exists($f)) return $f;
 			}
 
-			$f = EXC_PATH . 'views/view.blank.php';
+			$f = __DIR__ . '/assets/view.blank.php';
 			return $f;
-		}
-	}
-
-	class view {
-		public $state = ['name'=>'','file'=>'', 'commited'=>false, 'src'=>'', 'contents'=>[],'currentName'=>'','currentContent'=>null, 'elements'=>[]];
-		public static $values =[];
-		public static function default($any = null){
-			if(is_null(manager::$defaulView)){
-				
-				if(is_null($any) && isset(manager::$options['default'])){
-					return manager::createDefaultView(manager::$options['default']);
-				}
-				if(!is_null($any)){
-					return manager::createDefaultView($any);
-				}
-				
-				return null;
-			}
-			
-			if(!is_null($any)){
-				return manager::createDefaultView($any);
-			}
-			return manager::$defaulView;
-			
 		}
 		public static function createWithFile($path, $name='default'){
 			$view = self::createWithSource(file_get_contents($path), $name);
@@ -185,7 +130,7 @@ namespace exc\views {
 			$this->state['currentContent'] = &$this->state['contents'][$name];
 			return $this;
 		}
-		function src($value, $p=null){
+		function src($value, $p=null){ ///TODO BROKEN
 			///N:includes a css or js, etc
 			if(is_null($this->_part_current)) return $this;
 
@@ -196,6 +141,50 @@ namespace exc\views {
 				if(!isset($this->state['contents']['css_includes'])) $this->state['contents']['css_includes']=[];
 				$m =(!empty($p)) ? $p : 'all';
 				$this->$this->state['contents']['css_includes'][]= ['url'=>$value, 'media'=> $m];
+			}else{
+				$this->state['currentContent'].= $s;
+			}
+			return $this;
+		}
+		function copy($p, $attr=[]){
+			///N:includes a css or js or other
+
+			//error_log("view->" . $this->state['currentName'] . "->copy(" . $p . ")");
+			$path = '';
+			if(is_string($p)){
+				$f = \exc\path::normalize($p);
+				if(!$f['exists']) return $this;
+				$path = $f['path'];
+			}elseif(is_array($p) && isset($p['path'])){
+				$path = $p['path'];
+			}elseif(is_array($p) && isset($p['url'])){
+				$path = $p['url'];
+			}
+			
+			if(in_array($path, $this->pathsIncluded)) return $this;
+			$this->pathsIncluded[] = $path;
+
+			
+			$s = '';
+			try{
+				$s = file_get_contents($path);
+			}catch (Exception $err) {
+				error_log('[EXC][VIEW][ERROR] Unable to included path [' . $path . ']');
+				error_log('[EXC][VIEW][ERROR] ' . $err->getMessage() );
+				return $this;
+			}
+
+			if(strlen($s) == 0) return $this;
+
+		
+			if($this->state['currentName'] == 'js'){
+				$s = '// EXC INCLUDE: ' . basename($path) . "\n" . $s;
+				if(!isset($this->state['contents']['js_includes'])) $this->state['contents']['js_includes']='';
+				$this->state['contents']['js_includes'] .= $s;
+			}elseif($this->state['currentName'] == 'css'){
+				$s = '/* EXC INCLUDE: ' . basename($path) . " */ \n" . $s;
+				if(!isset($this->state['contents']['css_includes'])) $this->state['contents']['css_includes']='';
+				$this->state['contents']['css_includes'] .= $s;
 			}else{
 				$this->state['currentContent'].= $s;
 			}
@@ -254,6 +243,14 @@ namespace exc\views {
 		public function getHTML(){
 			$s = $this->state['src'];
 
+
+
+			if(isset($this->state['contents']['js_includes'])){
+				$this->state['contents']['js_includes'] = '<script type="text/javascript">' . $this->state['contents']['js_includes'] . "\n</script>";
+			}
+			if(isset($this->state['contents']['css_includes'])){
+				$this->state['contents']['css_includes'] = '<style>' . $this->state['contents']['css_includes'] . "\n</style>";
+			}
 			//error_log(var_export(self::$values, true));
 
 			//print "<pre> src=" . htmlentities($s, true) . "</pre><br>";
@@ -340,7 +337,7 @@ namespace exc\views {
 				$n = $m[2][0];
 				$t = $m[1][0];
 
-				if($m[1][0] == "view") $n = manager::getViewFileWithName($n);
+				if($m[1][0] == "view") $n = self::getViewPathForName($n);
 				if(preg_match('/[a-z]+\:\/\//', $n)){
 					$p = \exc\path::normalize($n);
 					$n = $p['path'];
@@ -383,7 +380,7 @@ namespace exc\views {
 						//print "repeat looking for $r at $x1<br>";
 						if (preg_match($r1, $this->state['src'], $n1,PREG_OFFSET_CAPTURE, $x2 )){
 							$x3 = $n1[0][1];
-							$e['src'] = view::createWithSource( $e['n'], substr($this->state['src'], $x2, $x3-$x2-1) );
+							$e['src'] = self::createWithSource( $e['n'], substr($this->state['src'], $x2, $x3-$x2-1) );
 
 							$x2 = $x3 + strlen($n1[0][0]);
 						}
@@ -393,7 +390,7 @@ namespace exc\views {
 						$r1 = "/\{\{end if {$n}\}\}/";
 						if (preg_match($r1, $this->state['src'], $n1,PREG_OFFSET_CAPTURE, $x2 )){
 							$x3 = $n1[0][1];
-							$e['src'] = view::createWithSource( $e['n'], substr($this->state['src'], $x2, $x3-$x2-1) );
+							$e['src'] = self::createWithSource( $e['n'], substr($this->state['src'], $x2, $x3-$x2-1) );
 							$x2 = $x3 + strlen($n1[0][0]);
 						}
 					}
@@ -402,7 +399,7 @@ namespace exc\views {
 						$r1 = "/\{\{end unless {$n}\}\}/";
 						if (preg_match($r1, $this->state['src'], $n1,PREG_OFFSET_CAPTURE, $x2 )){
 							$x3 = $n1[0][1];
-							$e['src'] = view::createWithSource( $e['n'], substr($this->state['src'], $x2, $x3-$x2-1) );
+							$e['src'] = self::createWithSource( $e['n'], substr($this->state['src'], $x2, $x3-$x2-1) );
 							$x2 = $x3 + strlen($n1[0][0]);
 						}
 					}

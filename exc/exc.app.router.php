@@ -74,7 +74,6 @@ class router {
 		$re = "((?:[^\/]*\/)*)";
 		if( preg_match('/' . $re . 'c\/([A-Za-z0-9-_]+)(\.([A-Za-z0-9-_]+))?/', $url, $m) ){
 			//is a controller URL
-			print_r($m);
 			$this->route['action_type'] = 'runController';
 			$this->route['base_url'] = $m[1];
 			$this->route['resource_path'] = '';
@@ -113,7 +112,6 @@ class router {
 	public function loadValuesFromHTTP(){
 		$this->route['values'] = $_REQUEST;
 		foreach($_REQUEST as $k=>$v){
-			if(is_array($v)) continue;
 			if(is_array($v)) $v = "ARRAY";
 			error_log("\$_REQUEST[$k]=[$v]");
 		}

@@ -3,9 +3,11 @@ namespace exc;
 
 class session extends \exc\core\base {
 	public static $store = ["ms"=>[]];
+	public static $enabled = false;
 	public static function initialize(){
 		error_log("@exc/session/manager/initialize()");
 
+		self::$enabled = ( EXC_RUNMODE == 1 );
 		$ops = [
 			"name"=> "BS120",
 			"use_only_cookies"=> 1,
@@ -19,30 +21,28 @@ class session extends \exc\core\base {
 			$ops = \exc\core\base::extend($ops,\exc\options::$values['app']['session']);
 		}
 
-		session_start($ops);
+		$app = \exc\app::controller();
 
-		$app = \exc\controller\appController::instance();
+		
+		if(self::$enabled){
+			session_start($ops);
+			$fn = function() {
+				$_SESSION['BS120'] = \exc\session::$store;
+			};
 
-		if(isset($_SESSION['BS120'])){
-			self::$store = $_SESSION['BS120'];
-			if(!isset(self::$store['ms'])) self::$store['ms'] = [];
-		}else{
-			self::$store['BS'] = strtoupper(uniqid('BS'));
-			$app->publish("sessionInit");
+			if($app) $app->on('requestEnd', $fn);
+
+			if(isset($_SESSION['BS120'])){
+				self::$store = $_SESSION['BS120'];
+			}
+			
 		}
 
-		global $session;
-		$session = new \stdClass();
-		$session->store = [];
-		
-
-
-		$fn = function() {
-			$_SESSION['BS120'] = \exc\session::$store;
-		};
-
-		$app->on('requestEnd', $fn);
-		
+		if(!isset(self::$store['BS'])){
+			self::$store['BS'] = strtoupper(uniqid('BS'));
+			if($app) $app->publish("sessionInit");
+		}
+		if(!isset(self::$store['ms'])) self::$store['ms'] = [];
 	}
 	public static function hasKey($n){
 		return isset(self::$store[$n]);
@@ -57,11 +57,12 @@ class session extends \exc\core\base {
 	}
 	public static function destroy(){
 		\exc\session::$store = ["ms"=>[]];
-		$_SESSION['BS120'] = \exc\session::$store;
 		self::$store['BS'] = strtoupper(uniqid('BS'));
 
-		$app = \exc\controller\appController::instance();
-		$app->publish("sessionInit");
+		$app = \exc\app::controller();
+		if($app) $app->publish("sessionInit");
+
+		if(self::$enabled) $_SESSION['BS120'] = \exc\session::$store;
 	}
 	public static function removeKey($n){
 		if(isset(self::$store[$n])) unset(self::$store[$n]);

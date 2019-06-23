@@ -177,7 +177,7 @@ trait objectExtendable {
 
 class controller extends \exc\core\base {
 	use \exc\core\objectExtendable;
-
+	public $scopeName = 'any';
 	private $event_map = [];
 	public static function isControllerInstance($o){
 		if(!is_object($o)) return false;

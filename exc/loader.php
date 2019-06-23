@@ -78,5 +78,4 @@ define("EXCSERVERMODE", "1");
 
 
 \exc\bootloader::run();
-$app = \exc\controller\appController::instance();
 ?>

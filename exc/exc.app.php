@@ -1,158 +1,154 @@
 <?php
 namespace exc{
 class app {
-	static private $last_js_controller_file = null;
-	static public function ready($js){
-		$c = client::instance();
-		$c->ready($js);
-	}
+	public static $RUNMODE = 1;
+	public static $appController = null;
+	public static $firstResponder = null;
+	public static $scopeAction = 'main.default';
+	public static $controllers = [];
+	
 	public static $app_state = [ 'header'=>[], 'buffer'=>'', 'commited'=>false, 'config'=>[] ];
 	public $properties = array();
 
 	public static function controller(){
-		global $app_controller;
-		return $app_controller;
+		return self::$appController;
 	}
-	public static function setModuleName($name){
-		$c = client::instance();
-		$c->setModuleName($name);
-	}
-	public static function setModuleController($className, $url = null){
-		$c = client::instance();
-		$c->setModuleController($className, $url);
-	}
-	public static function addDataset($name, $path){
-		$c = client::instance();
-		$c->addDataset($name, $path);
-	}
-	public static function getJSObject(){
-		global $config;
+	public static function setFirstResponder($any){
+		$cn = $any;
+		if(!isset(self::$controllers[$cn])) return; //fail silently?
 
-		$uid_name = 'main';
-		$js_app = "<script type='text/javascript'>//exc app\n";
+		$o = self::$controllers[$cn]['instance'];
+		if(!self::$appController->performMessage("canBecomeFirstResponder", [$cn, $o])) return;
+		self::$firstResponder = $o;
+		
+		\exc\options::$values['app']['firstresponder'] = $cn;
 
-		$uid = uniqid('APPK');
-		if(isset(self::$app_state['moduleName'])){
-			if( isset(self::$app_state['moduleController']) && (self::$app_state['moduleName'] == self::$app_state['moduleController']) ){
-				 self::$app_state['moduleName'] .= '_' . $uid;
-			}
-			$uid_name = self::$app_state['moduleName'];
+		if(self::$firstResponder instanceof \exc\controller\viewController){ //do we need a client
+			//if( \exc\options::key('/app/with_client') == 1) return;
+			//\exc\bootloader::addModule('exc://exc.ui', []);
 		}
 
-		if(isset(self::$app_state['moduleController']) && !empty(self::$app_state['moduleController']['js']) ){
-			$js_app.= self::$app_state['moduleController']['js'] . "\n\n";
-		}
-
-
-		$js_app.= "var {$uid} = " . self::toJSON() . ";\n";
-		$js_app.= "{$uid}.moduleName = '{$uid_name}';\n";
-		$js_app.= "{$uid}.moduleLoaded = false;\n";
-
-		if(isset(self::$app_state['moduleController'])){
-			$js_app.= $uid . '.moduleController = "' . self::$app_state['moduleController']['name'] . "\";\n";
-		}
-
-		foreach(self::$datasets as $k => $d){
-			$js_app.= "{$uid}.datasets." . $k . "=" . $d . ";\n";
-		}
-
-		$js_app.= $uid . '.app_event_start = function(){' . self::$ready . "};\n";
-
-		$js_app.= 'exc.app.bootstrapModule(' . $uid . ");\n";
-
-		$js_app.= "</script>";
-		return $js_app;
+		
+		//error_log_dump(self::$firstResponder, '$firstResponder');
 	}
-	public static function client($a=null){
-		return client::instance($a);
-	}
-	public static function sendPage($page){
-		global $app_forms;
-
-		if( !empty($app_forms) && (count($app_forms) > 0)){
-			foreach($app_forms as $f){
-				if($f->clean) {
-					$page->write($f->getHTML());
-				}
-			}
-		}
-
-		self::raise('default_view_commit', [$page]);
-
-		self::commit();
-		$page->show( $config->application['attributes']['template_view']);
-
-	}
-}
-
-
-} //namespace exc
-namespace exc\controller {
-
-
-class appController extends \exc\core\controller {
-	public $controller = null;
-	public $controllers = [];
-	public static $app_state = [ 'headers'=>[], 'buffer'=>'', 'commited'=>false, 'ended'=>false, 'config'=>[] ];
 	public static function init(){
-		global $app_controller, $client_controller, $app;
-		$app_controller = new appController();
-		$app = $app_controller;
-
-		self::$app_state['config'] = ['uid'=>'', 'directory'=> '', 'url'=>'' ,'lng'=>'en','location'=> 'DEFAULT',  'action'=> '', 'action_default'=> '' ];
-
+		\exc\controller\appController::init();
 	}
-	public static function setAppState($n, $v){
-		self::$app_state[$n] = $v;
-	}
-	public function controller(){
-		return $this->controller;
-	}
-	public static function instance(){
-		global $app_controller;
-		return $app_controller;
-	}
-	public function getOption($n, $default=null){
-		if(!isset(\exc\options::$values['app'][$n])) return $default;
-		return \exc\options::$values['app'][$n];
-	}
-	public function setOption($n, $v){
-		\exc\options::$values['app'][$n] = $v;
-	}
-	public function loadAppDefinition($basePath = null){
-
-		$r = $basePath;
+	public static function findPathForController($cn, $basePath = null){
+		$r = is_string($basePath) ? $basePath : EXC_PATH_BASE;
 		chdir($r);
-		$p = realpath("./app.php");
+
+		$cn = 'controller.' . $cn  . '.php';
+		$p = realpath('./' . $cn);
 		while($p === false){
 			$r = realpath('../');
 			if($r === false) break;
+			
+			if(strpos($r, EXC_DOCUMENT_ROOT) !== 0){
+				error_log('[EXC][APP][ERROR] Exausted paths looking for [' . $cn . '] reached [' . $r . '].' );
+				break;
+			}
 			chdir($r);
-			$p = realpath("./app.php");
-		}
-		if($p === false) return false;
-		error_log("[EXC] FOUND APP DEFINITION AT [" . $p . ']');
-
-		$app = $this;
-		$options = \exc\options::$values['app'];
-
-		$options['path_app'] = dirname($p) . '/';
-
-		//\exc\bootloader::setOption()
-		include($p);
-
-		if(!is_array($options)) return false;
-
-		foreach($options as $k=>$v){
-			\exc\options::$values['app'][$k] = $v;
+			$p = realpath('./' . $cn);
 		}
 
-
-
-		return false;
+		return $p;
 	}
-	public function addAppController($cc, $p=null){
+	public static function loadApp($basePath = null){
 
+		$p = self::findPathForController('app', $basePath);
+		$app_path = $basePath;
+		if($p === false) {
+			$o = new \exc\controller\appController();
+			\exc\options::key('/app/path/base', $basePath);
+
+
+			
+		}else{
+			error_log('[EXC][APP] FOUND APP CONTROLLER AT [' . $p . ']');
+			$app_path = dirname($p) . '/';
+			\exc\options::key('/app/path/controller', $p);
+			$o = \exc\core\controller::loadControllerWithPath('appController', $p);
+		}
+
+		if(!$o){
+			error_log('[EXC][APP][ERROR] Unable to create instance of appController');
+			return false;
+		}
+
+		define('EXC_PATH_APP', $app_path);
+		\exc\path::addUP('app', $app_path);
+		\exc\options::key('/app/path/base', $app_path );
+
+		self::$appController = $o;
+		self::$firstResponder = self::$appController;
+		
+
+		$options =[];
+		if( method_exists($o, 'config') ){
+			$options = call_user_func([$o, 'config'],[]);
+
+			if(is_array($options)){
+				
+				if(is_array($options['using'])){
+					\exc\bootloader::processOptionUsing($options['using']);
+				}
+				
+				foreach($options as $k=>$v){
+					\exc\options::$values['app'][$k] = $v;
+				}
+			}
+		}
+		
+
+		return true;
+	}
+	public static function runWithAction($a){
+		$app = self::$appController;
+
+
+
+		self::$scopeAction = \exc\app::$firstResponder->scopeName;
+		self::$scopeAction .= '.' . strtolower($a);
+
+		$app->publish('appInit', []);
+		
+		
+		if(isset(\exc\bootloader::$route['request_url'])){
+			$app->publish('withRequestURL', [\exc\bootloader::$route['request_url']]);
+		}
+
+		if(!\exc\session::hasKey('AISR')){
+			error_log('[EXC][APP] Forcing action AppStart instead of [' . $a . ']');
+			//$a = 'AppStart';
+		}
+
+		$a1 = $app->performMessage("willDispatchAction", [$a] );
+		if(is_string($a1) && strlen($a1) && ($a!=$a1) ){
+			error_log('[EXC][APP] Action modified from [' . $a . '] to [' .$a1 . ']');
+			$a = $a1;
+		}
+
+		if(!\exc\session::hasKey('eas')){
+			//self::runApplication($app);
+		}else{
+		
+			
+		}
+
+		error_log_dump(self::$firstResponder , 'firstResponder');
+		if( \exc\core\controller::isControllerInstance(self::$firstResponder) ){
+			self::$firstResponder->performMessage('action_' . $a,[]);
+		}
+
+
+		$app->end();
+	}
+	public static function getController($cn){
+		if(!isset(self::$controllers[$cn])) return null; //return $this;
+		return self::$controllers[$cn]['instance'];
+	}
+	public function registerController($cc, $p=null){
 		$o = null;
 		$cp = '';
 		$cn = 'stdClass';
@@ -176,22 +172,244 @@ class appController extends \exc\core\controller {
 
 		if(is_null($o)) return;
 		if( !\exc\core\controller::isControllerInstance($o) ) return;
-		error_log("[EXC] appControllerLoad [" . $cp . '][' . $cc . ']' );
-		$this->publish("appControllerLoaded", [$o]);
-		$this->controllers[$cn] = ['name'=>$cn, 'class'=>$cc, 'instance'=>$o, 'path'=>$cp];
-		//\exc\core\controller::registerHandlers($this, $o);
+
+		$o->scopeName = $cn;
+
+		error_log("[EXC][APP] appControllerLoad [" . $cp . '][' . $cc . ']' );
+		self::$controllers[$cn] = ['name'=>$cn, 'class'=>$cc, 'instance'=>$o, 'path'=>$cp];
 	}
-	public function setFirstResponder($any){
-		$cn = $any;
-		if(!isset($this->controllers[$cn])) return; //fail silently?
+	
+	public static function client($a=null){
+		static $c = null;
+		if(!is_null($c)) return $c;
+		
+		$c = client::instance(\exc\bootloader::$route);
+		return $c;
+	}
+}
 
-		$this->controller = $this->controllers[$cn]['instance'];
-		\exc\options::$values['app']['firstresponder'] = $cn;
 
-		if($this->controller instanceof \exc\controller\viewController){ //do we need a client
-			$this->initializeUI();
+} //namespace exc
+namespace exc\controller {
+
+
+class appController extends \exc\core\controller {
+	
+	public $scopeName = 'app';
+	public static $app_state = [ 'headers'=>[], 'buffer'=>'', 'commited'=>false, 'ended'=>false, 'config'=>[] ];
+	public static $defaulView = null;
+	public static $client= null;
+	
+	public static function init(){
+		global $app_controller, $client_controller, $app;
+		$app_controller = new appController();
+		$app = $app_controller;
+
+		self::$app_state['config'] = ['uid'=>'', 'directory'=> '', 'url'=>'' ,'lng'=>'en','location'=> 'DEFAULT',  'action'=> '', 'action_default'=> '' ];
+
+	}
+	public static function setAppState($n, $v){
+		self::$app_state[$n] = $v;
+	}
+	public static function instance(){
+		return \exc\app::$appController;
+	}
+	public function client(){
+		if(!is_null(self::$client)) return self::$client;
+		self::$client = \exc\client::instance(\exc\bootloader::$route);
+		return self::$client;
+	}
+	public function getOption($n, $default=null){
+		if(!isset(\exc\options::$values['app'][$n])) return $default;
+		return \exc\options::$values['app'][$n];
+	}
+	public function setOption($n, $v){
+		\exc\options::$values['app'][$n] = $v;
+	}
+	public function getDefaultView(){
+		return self::$defaulView;
+	}
+	public function makeViewDefault($any){
+
+		if( is_object($any) && is_a($any, '\exc\view') ){
+			$view = $any;
+		}elseif( is_string($any) && (strlen($any)>0) ){ //name of a view
+			$view = \exc\view::load($any);
 		}
+
+		if(is_null($view)) return null;
+
+
+		self::$defaulView = $view;
+		
+		$fn = function() use ($view){
+			error_log("@viewCommit............");
+			if($view == null) return;
+			if($view->state['commited']) return;
+
+			$this->publish("viewCommit", [ $view ] );
+		
+			$view->inline->write('');
+	
+			$js = "<script type='text/javascript' id='excbl'>\n";
+			$js.= $this->getJSObject();
+			$js.= "</script>";
+
+			$view->body_end->write( $js );
+			$this->write($view);
+		};
+
+		$fn->bindTo($this, $this);
+		$this->on('appSendOutput', $fn);
+
+
+		$scope = \exc\app::$scopeAction;
+
+		if(is_array(\exc\options::$values['app']['view.copy'])){  //refactor...
+
+			foreach(\exc\options::$values['app']['view.copy'] as $sk => $entries){
+				if( ($sk != '*') && ($sk!=$scope)) continue;
+				error_log('[EXC][APP] view.copy ' . $sk . '');
+				foreach($entries as $e){
+					$url = ''; $wait = true; $type='html';
+			
+					if(is_string($e)){
+						$url = $e;
+					}elseif(is_array($e) && isset($e['url'])){
+						$url = $e['url'];
+						if(isset($e['wait'])) $wait = $e['wait'];
+						if(isset($e['type'])) $type = $e['type'];
+					}
+
+					if($type=='css'){
+						$view->css->copy($url);
+					}elseif($type=='js'){
+						$view->js->copy($url);
+					}
+				}
+			}
+		}
+
+
 	}
+	public function canBecomeFirstResponder($cn, $obj){
+		//request to change first responder, return true to allow it
+		return true;
+	}
+	public function appStart(){
+		error_log("================     @app->appStart =================");
+		$bs = \exc\session::key("BS");
+
+		$uid = uniqid('A');
+		$sid = session_id();
+		$backend_key = sha1( $uid . '-' . $sid);
+		
+		\exc\session::key("ABK", $backend_key);
+		\exc\session::key("AUID", $uid);
+
+		\exc\options::$values['app']['ABS'] = $bs;
+		\exc\options::$values['app']['ABK'] = $backend_key;
+		\exc\options::$values['app']['AUID'] = $uid;
+
+	
+		$fn = function($view) use ($uid, $sid, $backend_key){
+			error_log("@appStart viewCommit............");
+			if($view == null) return;
+			if($view->state['commited']) return;
+
+			$js = "<script type='text/javascript' src='bootloader.init'></script>\n";
+			$view->body_end->write( $js );
+		};
+		$this->on('viewCommit', $fn);
+
+
+		$this->publish("appStart", [$this]);
+	}
+	public static function getJSObject(){
+		global $config;
+
+		$uid_name = 'main';
+		$js_app = "<script type='text/javascript'>//exc app\n";
+		
+		$uid = uniqid('APPK');
+		$sid = session_id();
+		$backend_key = sha1( $uid . '-' . $sid);
+		
+		\exc\session::key("ABK", $backend_key);
+		\exc\session::key("AUID", $uid);
+
+		
+		$jsb = \exc\helper\script::load("backend.js");
+		$jsb->bms = 'R' . sha1(\exc\session::key("BS") . '-' . session_id() );
+		$jsb->uid = $uid;
+		$jsb->sk = $backend_key;
+
+		if(!is_null(\exc\controller\appController::$client)){
+			$js_st = \exc\controller\appController::$client->getState();
+		}else{
+			$js_st = '';
+		}
+
+		$jsa = \exc\helper\script::load("app.js");
+		$jsa->bk = $jsb;
+		$jsa->app_state = $js_st;
+
+		return $jsa->source();
+	}
+	public function sendBootloader(){
+		$uid_name = 'main';
+		$js_app = "<script type='text/javascript'>//exc app\n";
+		
+		$uid = uniqid('APPK');
+		$sid = session_id();
+		$backend_key = sha1( $uid . '-' . $sid);
+		
+		\exc\session::key("ABK", $backend_key);
+		\exc\session::key("AUID", $uid);
+
+		
+		$jsb = \exc\helper\script::load("backend.js");
+		$jsb->bms = 'R' . sha1(\exc\session::key("BS") . '-' . session_id() );
+		$jsb->uid = $uid;
+		$jsb->sk = $backend_key;
+
+		$client = \exc\client::instance();
+		$js_st = $client->getState();
+
+		$jsa = \exc\helper\script::load("app.js");
+		$jsa->bk = $jsb;
+		$jsa->app_state = $js_st;
+
+		return $jsa->source();$uid_name = 'main';
+		$js_app = "<script type='text/javascript'>//exc app\n";
+		
+		$uid = uniqid('APPK');
+		$sid = session_id();
+		$backend_key = sha1( $uid . '-' . $sid);
+		
+		\exc\session::key("ABK", $backend_key);
+		\exc\session::key("AUID", $uid);
+
+		
+		$jsb = \exc\helper\script::load("backend.js");
+		$jsb->bms = 'R' . sha1(\exc\session::key("BS") . '-' . session_id() );
+		$jsb->uid = $uid;
+		$jsb->sk = $backend_key;
+
+		$client = \exc\client::instance();
+		$js_st = $client->getState();
+
+		$jsa = \exc\helper\script::load("app.js");
+		$jsa->bk = $jsb;
+		$jsa->app_state = $js_st;
+
+		return $jsa->source();
+		
+
+	}
+	
+
+	
 	public function loadAppControllers(){
 		$o = \exc\options::$values['app'];
 		$cr = ( isset($o['controllers']) && is_array($o['controllers']) ) ? $o['controllers'] : [];
@@ -199,15 +417,12 @@ class appController extends \exc\core\controller {
 		$i = 0;
 		foreach($cr as $cc => $p){
 			$r = \exc\path::normalize($p);
-			$this->addAppController($cc, $r['path']);
+			\exc\app::registerController($cc, $r['path']);
 		}
 
 
 	}
-	public function getController($cn){
-		if(!isset($this->controllers[$cn])) return null; //return $this;
-		return $this->controllers[$cn]['instance'];
-	}
+	
 	public function initializeUI(){
 		if( \exc\options::key('/app/with_client') == 1) return;
 		\exc\bootloader::addModule('exc://exc.ui', []);
@@ -215,7 +430,7 @@ class appController extends \exc\core\controller {
 	function publish($evtName, $param=[]){
 		///N:Raises an event, the event gets send to observers registered for this event
 		$kmsg = $evtName;
-		foreach($this->controllers as $cn => $ce){
+		foreach(\exc\app::$controllers as $cn => $ce){
 			$o = $ce['instance'];
 			if(is_null($o)) continue;
 			$handler = $o->getMessageHandler($kmsg);
@@ -242,8 +457,7 @@ class appController extends \exc\core\controller {
 	}
 	public function sendJSON($a){
 
-		$app = \exc\controller\appController::instance();
-		$app->publish("appSendJSON", []);
+		$this->publish("appSendJSON", []);
 		
 		$this->header('content-type','text/json');
 
@@ -257,8 +471,7 @@ class appController extends \exc\core\controller {
 		$this->end();
 	}
 	public function sendJS($s){
-		$app = \exc\controller\appController::instance();
-		$app->publish("appSendJS", []);
+		$this->publish("appSendJS", []);
 		$this->header('content-type','text/javascript');
 
 		if(is_string($s)){
@@ -312,7 +525,7 @@ class appController extends \exc\core\controller {
 		flush();
 		exit;
 	}
-	public static function sendDownloadWithData($mime, $data, $filename=null){
+	public function sendDownloadWithData($mime, $data, $filename=null){
 
 		if(self::$app_state['commited']) return;
 
@@ -368,8 +581,7 @@ class processController extends \exc\core\controller {
 
 	}
 	public function appController(){
-		global $app_controller;
-		return $app_controller;
+		return \exc\app::controller();
 	}
 }
 class viewController extends \exc\core\controller {
@@ -380,8 +592,7 @@ class viewController extends \exc\core\controller {
 
 	}
 	public function appController(){
-		global $app_controller;
-		return $app_controller;
+		return \exc\app::controller();
 	}
 }
 

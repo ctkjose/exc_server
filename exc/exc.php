@@ -2,19 +2,27 @@
 
 namespace exc;
 
-$__here = dirname(__FILE__) . '/';
 
-if(file_exists($__here . '/exc.config.php')){
-	include_once($__here . '/exc.config.php');
+define('EXC_PATH', dirname(__FILE__) . '/');
+
+if( defined('STDIN') || in_array(PHP_SAPI, ['cli', 'cli-server', 'phpdbg'], TRUE) ) {
+	define('EXC_RUNMODE', 2); //is CLI
+}else{
+	define('EXC_RUNMODE', 1); //is SAPI, WEB
+}
+if(file_exists(EXC_PATH . '/exc.config.php')){
+	include_once(EXC_PATH . '/exc.config.php');
 }
 if(!defined('EXC_PATH_APPS_FOLDER')){
 	define('EXC_PATH_APPS_FOLDER', dirname(__DIR__) . "/");
 }
-require_once($__here . "exc.core.php");
-require_once($__here . "exc.app.router.php");
-require_once($__here . "exc.app.php");
-require_once($__here . "exc.app.manifest.php");
-require_once($__here . "exc.session.php");
+
+
+require_once(EXC_PATH . "exc.core.php");
+require_once(EXC_PATH . "exc.app.router.php");
+require_once(EXC_PATH . "exc.app.php");
+require_once(EXC_PATH . "exc.session.php");
+require_once(EXC_PATH . "exc.helper.js.php");
 //require_once($__here . "exc.io.files.php");
 
 
@@ -26,13 +34,17 @@ spl_autoload_register(function ($class) {
 		$o = explode('\\', $class);
 		$cn = array_pop($o);
 		$f = implode('.', $o);
-
-		if(file_exists(__DIR__ . '/' . $f . '.php')){
-			error_log("[EXC] AUTOLOAD " .   __DIR__ . '/' . $f . '.php');
-			include_once(__DIR__ . '/' . $f . '.php');
-		}else if(file_exists(__DIR__ . '/' . $f . '.' . $cn . '.php')){
+		
+		if(file_exists(__DIR__ . '/' . $f . '.' . $cn . '.php')){
 			error_log("[EXC] AUTOLOAD " .  __DIR__ . '/' . $f . '.' . $cn . '.php');
 			include_once( __DIR__ . '/' . $f . '.' . $cn . '.php');
+			return;
+		}
+
+		if(count($o) > 1 && file_exists(__DIR__ . '/' . $f . '.php')){
+			error_log("[EXC] AUTOLOAD " .   __DIR__ . '/' . $f . '.php');
+			include_once(__DIR__ . '/' . $f . '.php');
+			return;
 		}
 	}
 });
@@ -40,105 +52,59 @@ class bootloader {
 
 	const RUN_MODE_CLI = 2;
 	const RUN_MODE_WEB = 1;
+	public static $RUNMODE = 1;
+	public static $route = [];
 	private static $modules = [];
 	public static $options = ['version'=>'1.0', 'version_name'=>'EXC0001.0', 'mode'=> self::RUN_MODE_WEB];
 	public static function setOption($name, $value){
 		options::$values[$name] = $value;
 	}
+	public static function processOptionUsing($entries, $scope='*'){
+		if(!is_array($entries)) return;
 
-	public static function run(){
-		define('EXC_SERVER_PATH', dirname(__FILE__) . '/');
-		define('EXC_PATH', dirname(__DIR__) . '/');
-		define('EXC_DIRECTORY', __DIR__ . '/');
-
-		if( isset($_SERVER) && isset($_SERVER['DOCUMENT_ROOT']) && (strlen($_SERVER['DOCUMENT_ROOT']) > 0)){
-			$r = $_SERVER['DOCUMENT_ROOT'];
-		}elseif( isset($_SERVER) && isset($_SERVER['PWD']) && (strlen($_SERVER['PWD']) > 0)){
-			$r = $_SERVER['PWD'];
-		}
-		if(substr($r, -1, 1) != '/') $r.= '/';
-		define('EXC_DIRECTORY_ROOT', $r);
-		path::setRoot($r);
-		
-		options::$values['version'] = '1.0';
-		options::$values['version_name'] = 'EXC0001.0';
-		options::$values['mode'] = isset($_SERVER['SHELL']) ? self::RUN_MODE_CLI: self::RUN_MODE_WEB;
-		
-		options::$values['path_exc'] = EXC_PATH;
-
-	
-		define('EXC_RUNMODE', options::$values['mode']);
-
-		options::$values['app'] = [
-			'uid'=>'EXCAPP',
-			'path_app'=>'',
-			'path_views'=> EXC_PATH . 'views/',
-			'firstresponder'=> null,
-			'controllers'=>[],
-			'with_ui' => 0,
-			'with_client' => 0,
-			'with_session' => 0,
-			'paths'=>[
-				'base'=>'',
-				'views'=>[]
-			],
-			'urls' => [
-
-			]
-		];
-
-		\exc\controller\appController::init();
-		$app = \exc\controller\appController::instance();
-
-		$r = \exc\router::load();
-
-
-		error_log_dump($r->route, 'ROUTE');
-
-		if($r->route['method']== 'cli'){
-			options::$values['app']['paths']['base'] = $r->route['base_path'];
-		}else{
-			options::$values['app']['paths']['base'] = $r->route['base_path'];
-			options::$values['app']['paths']['controller'] = $r->route['file_path'];
-			options::$values['app']['paths']['controller_directory'] = dirname($r->route['file_path']) . '/';
-			options::$values['app']['paths']['resource'] = $r->route['resource_path'];
-
-			options::$values['app']['urls']['base'] = $r->route['base_url'];
-			options::$values['app']['urls']['controller'] = $r->route['controller_url'];
-			options::$values['app']['urls']['controller_directory'] = $r->route['controller_directory_url'];
-			options::$values['app']['urls']['assets_directory'] = $r->route['assets_directory_url'];
-
-
-			path::addUP('app', $r->route['base_path']);
-		}
-
-		if( isset($r->route['base_path'])){
-		   define('EXC_DIRECTORY_FOR_CONTROLLER', $r->route['base_path']);
-		   $app->loadAppDefinition($r->route['base_path']);
-		}
-
-		if(is_array(options::$values['app']['using'])){
-			foreach(options::$values['app']['using'] as $k=>$params){
-				self::addModule($k,$params);
+		foreach($entries as $ascope => $set){
+			if($ascope != $scope && $ascope != '*') continue;
+			foreach($set as $k=>$params){
+				\exc\bootloader::addModule($k,$params);
 			}
 		}
-
+	}
+	public static function run(){
+		
+		self::$RUNMODE = EXC_RUNMODE;
+		
+		\exc\app::init();
+		\exc\app::$RUNMODE = self::$RUNMODE;
+		
 		
 
-
-		error_log_dump(options::$values, "options");
-		//reasg_dev_dump($app, "APP");
-
-		$fn = $r->route['action_type'];
-		if(method_exists('exc\bootloader', $fn)){
-			self::$fn($app);
+		if(self::$RUNMODE == self::RUN_MODE_CLI){
+			self::initFromCLI();
+		}else{
+			self::initFromHTTP();
 		}
 
 		
 		
-		$app->end();
+		error_log_dump(self::$route, 'ROUTE');
+
+		if(!strlen(self::$route['controller_name']) || (!isset(self::$route['base_path']))){
+			error_log("[EXC][BOOTSTRAP][ABORT] Nothing to do!");
+			exit;
+		}
+		
+		define('EXC_PATH_BASE', self::$route['base_path']);
+	
+		
+		$fn = self::$route['action_type'];
+		if(method_exists('exc\bootloader', $fn)){
+			self::$fn();
+		}
+
+		
 
 	}
+
 	public static function runInclude($app){
 
 	}
@@ -197,50 +163,70 @@ class bootloader {
 		readfile($p);
 		die();
 	}
-	public static function runController($app){
+	public static function runController(){
 
-		error_log("@runController--------------");
-		$r = \exc\router::instance();
-
-		if( (options::$values['app']['with_ui']==1) && (options::$values['app']['with_client']==0) ){
-			$app->initializeUI();
-		}
-
-		$app->loadAppControllers();
-
-		if( isset($r->route['controller_name']) && (strlen($r->route['controller_name']) > 0) ){
-			$cn = $r->route['controller_name'];
-			if(!isset($app->controllers[$cn])){
-				$app->addAppController($cn . 'Controller', $r->route['file_path']);
-			}
-
-			$app->setFirstResponder($cn);
-		}
-
-		if(is_null($app->controller) && (count($app->controllers) > 0)){
-			$app->setFirstResponder($app->controllers[0]);
-		}
-
-		\exc\session::initialize();
-		$app->publish("appInit", []);
-		$app->publish("requestStart", []);
-		if(!\exc\session::hasKey("eas")){
-			self::runApplication($app);
-		}else{
 		
-			if( \exc\core\controller::isControllerInstance($app->controller) ){
-				$app->controller->performMessage('action_' . $r->route['action'],[]);
+		error_log("[EXC][BOOTLOADER] Running controller");
+		if( isset(self::$route['base_path'])){
+			define('EXC_DIRECTORY_FOR_CONTROLLER', self::$route['base_path']);
+			if(!\exc\app::loadApp(self::$route['base_path'])){
+				error_log("[EXC][BOOTSTRAP][ERROR] Unable to load controller.app.php.");
+				exit;
 			}
 		}
 
-		$app->end();
+		$app = \exc\app::controller();
+		
+		//reasg_dev_dump($app, "APP");
+		$cn = 'appController';
+
+		if( isset(self::$route['controller_name']) && (self::$route['controller_name']!='app')){
+			//load a controller
+			$cn = self::$route['controller_name'];
+			$p = EXC_PATH_BASE;
+			if(strlen(self::$route['resource_path'])){
+				$p .= self::$route['resource_path'];
+			}
+			$file = 'controller.' . $cn . '.php';
+			if(substr($p,0,1) != '/') $p = '/' . $p;
+			if(substr($p,-1,1) != '/') $p .= '/';
+			$p.= $file;
+
+			$f = \exc\path::normalize($p);
+			//error_log_dump($f, 'file');
+			if(!$f['exists']){
+				error_log("[EXC][BOOTLOADER][ERROR] Unable to load requested controller" . $f['path']);
+			}else{
+				\exc\options::key('/app/path/controller', $f['path']);
+				\exc\app::registerController($cn . 'Controller', $f['path']);
+			}
+
+			\exc\app::setFirstResponder($cn);
+
+		
+		}
+		
+		\exc\options::key('/app/controllerClass', $cn);
+
+		\exc\error_log_dump(options::$values, "options");
+		
+		if(self::$RUNMODE == self::RUN_MODE_WEB){
+			\exc\session::initialize();
+			if(\exc\session::$enabled) error_log("session ready ----------------------");
+		}
+
+		\exc\app::runWithAction(self::$route['action']);
+		//$app->end();
+		
+
+		
 	}
 	public static function runApplication($app){
 		\exc\session::key("eas", 1);
 
-		$bs = \exc\session::key("BS");
-		$ms = 'R' . sha1( $bs );
-		$app->publish("appStart", [$app]);
+		
+		$app->appStart();
+		
 		
 		/*
 		if(is_array(options::$values['app']['manifest1'])){  //refactor...
@@ -274,6 +260,130 @@ class bootloader {
 			//\exc\manifest::addScript($r['url'], $wait);
 		//}
 	}
+	public static function detectRun(){
+
+		self::$route = [
+			'request_url' => $url,
+			'base_url'=>'', 'base_path'=>'',
+			
+			'action'=> 'default', 'action_type'=>'runPassthru',
+			'controller_name'=>'', 'controller_class'=>'', 'controller_url'=>'',
+			'file_name'=> '','file_type'=>'', 'file_path'=>'',
+			'method' => '',
+			'resource_path'=>'',
+			'return_type'=>'any',
+		];
+
+		
+	}
+	
+	public static function loadController(){
+		
+		if(!strlen(self::$route['controller_name'])) return;
+		
+		$af = self::$route['action'];
+		self::$route['controller_class'] = '';
+		
+		$fp = path::normalize( '.' . self::$route['base_url']);
+		self::$route['base_path'] = $fp['path'] . '/';
+		//error_log_dump($fp, 'filep');
+
+
+		$p = self::$route['base_path'];
+		if(strlen(self::$route['resource_path'])){
+			$p .= self::$route['resource_path'];
+		}
+		$file = 'controller.' . self::$route['controller_name'] . '.php';
+		if(substr($p,0,1) != '/') $p = '/' . $p;
+		if(substr($p,-1,1) != '/') $p .= '/';
+		$p.= $file;
+
+		$f = \exc\path::normalize($p);
+		//error_log_dump($f, 'file');
+		if(!$f['exists']){
+			error_log("EXC ROUTE FILE NOT FOUND::" . $f['path']);
+			return;
+		}
+
+		self::$route['file_type'] = 'php';
+		self::$route['file_name'] = $f['name'];
+		self::$route['file_path'] = $f['path'];
+		return true;
+	}
+	public static function initFromCLI(){
+		if( isset($_SERVER) && isset($_SERVER['PWD']) && (strlen($_SERVER['PWD']) > 0)){
+			$r = $_SERVER['PWD'];
+			if(substr($r, -1, 1) != '/') $r.= '/';
+			define('EXC_DOCUMENT_ROOT', $r);
+		}
+		
+		\exc\path::setRoot(EXC_DOCUMENT_ROOT);
+	}
+	public static function initFromHTTP(){
+
+		if( isset($_SERVER) && isset($_SERVER['DOCUMENT_ROOT']) && (strlen($_SERVER['DOCUMENT_ROOT']) > 0)){
+			$r = $_SERVER['DOCUMENT_ROOT'];
+			if(substr($r, -1, 1) != '/') $r.= '/';
+			define('EXC_DOCUMENT_ROOT', $r);
+		}
+
+		\exc\path::setRoot(EXC_DOCUMENT_ROOT);
+		error_log('[EXC][BOOTLOADER] REDIRECT ' . (isset($_SERVER['REDIRECT_URL']) ? $_SERVER['REDIRECT_URL'] : '<UNDEFINED>'));
+		error_log('[EXC][BOOTLOADER] URI ' . $_SERVER['REQUEST_URI']);
+
+		self::$route['method'] = strtolower($_SERVER['REQUEST_METHOD']);
+
+		$re = "((?:[^\/]*\/)*)";
+		if(isset($_SERVER['REDIRECT_URL']) && preg_match('/' . $re . 'c\/([A-Za-z0-9-_]+)(\.([A-Za-z0-9-_]+))?/', $_SERVER['REDIRECT_URL'], $m) ){
+			//is a controller URL
+			self::$route['request_url'] = $_SERVER['REDIRECT_URL'];
+			self::$route['action_type'] = 'runController';
+			self::$route['base_url'] = $m[1];
+			self::$route['resource_path'] = '';
+			self::$route['controller_name'] = $m[2];
+			if(isset($m[3])){
+				self::$route['action'] = $m[4];
+			}
+		}
+
+
+		$fp = path::normalize( '.' . self::$route['base_url']);
+		if(substr($fp['path'], -1,1) != '/' ) $fp['path'] .= '/';
+		self::$route['base_path'] = $fp['path'];
+
+		//Load values
+		self::$route['values'] = $_REQUEST;
+		foreach($_REQUEST as $k=>$v){
+			if(is_array($v)) $v = "ARRAY";
+			error_log("\$_REQUEST[$k]=[$v]");
+		}
+
+		if( isset(self::$route['values']['api_return']) ){
+			self::$route['return_type'] = self::$route['values']['api_return'];
+			unset( self::$route['values']['api_return']);
+		}
+
+		if( isset(self::$route['values']['api_json_data']) ){
+			$v = json_decode(self::$route['values']['api_json_data'], true);
+			unset(self::$route['values']['api_json_data']);
+			self::$route['values'] = array_merge(self::$route['values'], $v);
+		}
+
+		if( isset(self::$route['values']['api_json_state']) ){
+			self::$route['state'] = json_decode(self::$route['values']['api_json_state'], true);
+			unset(self::$route['values']['api_json_state']);
+		}
+
+
+		if(isset(self::$route['values']['api-action'])) {
+			self::$route['action'] = strtolower(self::$route['values']['api-action']);
+			unset( self::$route['values']['api-action']);
+		}elseif( isset(self::$route['values']['a']) && (self::$route['action_type'] == 'runInclude')){
+			self::$route['action'] = strtolower(self::$route['values']['a']);
+			unset(self::$route['values']['a']);
+		}
+
+	}
 	public static function hasModule($name){
 		if(array_key_exists($name,self::$modules)) return true;
 		return false;
@@ -282,15 +392,16 @@ class bootloader {
 
 		if(array_key_exists($name,self::$modules)) return true;
 
-
+		///TODO mode this to use \exc\path
 		$paths = [
-			'exc'=> EXC_DIRECTORY,
-			'app'=> EXC_DIRECTORY_FOR_CONTROLLER,
+			'exc'=> EXC_PATH,
+			'app'=> '',
 			'file'=> EXC_DOCUMENT_ROOT,
 			'vendor'=> '',
 			'composer'=> '',
 		];
 
+		$paths['apps'] = defined('EXC_PATH_APP') ? EXC_PATH_APP : EXC_PATH_BASE;
 
 		$p = explode('://', $name);
 		$k = $p[0];
@@ -447,10 +558,9 @@ class options {
 		}
 
 		if(is_null($v)){
-			if(isset(self::$store[$n])) return self::$store[$n];
-			return null;
+			return $key;
 		}
-		self::$values[$n] = $v;
+		$key = $v;
 	}
 	public static function hasKey($n){
 		return isset(self::$values[$n]);

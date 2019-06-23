@@ -1,6 +1,7 @@
 <?php
 
 class recordController extends \exc\controller\viewController {
+	public $scopeName = 'record';
 	public function initialize(){
 		error_log("--- @recordController->initialize() ---");
 		

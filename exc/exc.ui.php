@@ -10,8 +10,8 @@ namespace exc\ui {
 			require_once(__DIR__ . "/exc.ui.views.php");
 			require_once(__DIR__ . "/exc.ui.widgets.php");
 
-			$app = \exc\controller\appController::instance();
-			$client = \exc\client::instance(\exc\router::instance());
+			$app = \exc\app::controller();
+			
 
 			\exc\options::key('app/with_ui', 10); //has UI
 			\exc\options::key('app/with_client',1); //has client

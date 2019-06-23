@@ -4,15 +4,20 @@ Options -Indexes
 	order allow,deny
 	deny from all
 </files>
-<files controller.*.php>
+<files controller1.*.php>
 	order allow,deny
 	deny from all
 </files>
 
-RewriteEngine On
-#RewriteBase /api/
 
-RewriteRule  ^((?:[^\/]*/)*)(c\/)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  tests/test_router.php [L,QSA]
+#REWRITE
+RewriteEngine On
+
+#capture Authorization headers
+RewriteRule .* - [env=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+
+#RewriteRule  ^((?:[^\/]*/)*)(c\/)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  tests/test_router.php [L,QSA]
 
 RewriteRule  ^((?:[^\/]*/)*)(c\/)([A-Za-z0-9-_]+\.[A-Za-z0-9-_]+|[A-Za-z0-9-_]+)$  exc/loader.php [L,QSA]
 RewriteRule  ^((?:[^\/]*/)*)(a\/)([A-Za-z0-9-_\.]+\.js)$  $1/assets/js/$3 [L,QSA]

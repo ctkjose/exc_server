@@ -1,4 +1,4 @@
-exports.testModal = function(){
+testModal = function(){
 	var ops = {
 		name: "testModal1",
 		title: "My App",

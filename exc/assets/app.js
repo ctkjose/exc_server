@@ -1,9 +1,8 @@
-{{app_state}}
-(function(){
-var bms = "{{bms}}";
-exc.backend.getMS = function(){
-	return bms;
-};
-})();
-var nd = document.getElementById("excbl");
-nd.parentNode.removeChild(nd);
+window.addEventListener("load", function(e){
+	var u = location.pathname.split('/')
+	var c = u.pop();
+	u.push("backend.init");
+	var url = u.join('/');
+
+	//alert(url);
+});

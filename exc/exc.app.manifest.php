@@ -60,7 +60,6 @@ class manifest {
 		}elseif($ext == 'css' ){
 			self::$compiled['css'].= "\n/*FILE " . $path['url'] . " */\n" . $data;
 		}
-
 	}
 	static public function getHTML(){
 		$s = "<script type='text/javascript'>\n//MANIFEST\n" . self::$compiled['js'] . "\n</script>";
