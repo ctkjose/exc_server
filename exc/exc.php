@@ -17,8 +17,8 @@ if(!defined('EXC_PATH_APPS_FOLDER')){
 	define('EXC_PATH_APPS_FOLDER', dirname(__DIR__) . "/");
 }
 
-require_once(EXC_PATH . "exc.helper.error.php");
-require_once(EXC_PATH . "exc.core.php");
+require_once(EXC_PATH . "helper.error.php");
+require_once(EXC_PATH . "core.php");
 require_once(EXC_PATH . "exc.app.php");
 require_once(EXC_PATH . "exc.session.php");
 require_once(EXC_PATH . "exc.helper.js.php");
@@ -80,10 +80,9 @@ class bootloader {
 			self::initFromHTTP();
 		}
 
-		
-		
-		error_log_dump(self::$route, 'ROUTE');
 
+		error_log_dump(self::$route, 'ROUTE');
+		exit;
 		if(!strlen(self::$route['controller_name']) || (!isset(self::$route['base_path']))){
 			error_log("[EXC][BOOTSTRAP][ABORT] Nothing to do!");
 			exit;
@@ -328,31 +327,38 @@ class bootloader {
 		error_log('[EXC][BOOTLOADER] URI ' . $_SERVER['REQUEST_URI']);
 
 		self::$route['method'] = strtolower($_SERVER['REQUEST_METHOD']);
+		self::$route['action_type'] = 'runController';
+		self::$route['controller_name'] = 'app';
+		self::$route['action'] = 'default';
 
-		$re = "((?:[^\/]*\/)*)";
-		if(isset($_SERVER['REDIRECT_URL']) && preg_match('/' . $re . 'c\/([A-Za-z0-9-_]+)(\.([A-Za-z0-9-_]+))?/', $_SERVER['REDIRECT_URL'], $m) ){
-			//is a controller URL
-			self::$route['request_url'] = $_SERVER['REDIRECT_URL'];
-			self::$route['action_type'] = 'runController';
-			self::$route['base_url'] = $m[1];
-			self::$route['resource_path'] = '';
-			self::$route['controller_name'] = $m[2];
-			if(isset($m[3])){
-				self::$route['action'] = $m[4];
-			}
-		}
+		self::$route['request_url'] = $_SERVER['REQUEST_URI'];
+		self::$route['base_url'] = '';
+		self::$route['base_path'] = dirname($_SERVER['REQUEST_URI']);
 
 
-		$fp = path::normalize( '.' . self::$route['base_url']);
-		if(substr($fp['path'], -1,1) != '/' ) $fp['path'] .= '/';
-		self::$route['base_path'] = $fp['path'];
+		$a = 'default';
 
-		//Load values
 		self::$route['values'] = $_REQUEST;
-		foreach($_REQUEST as $k=>$v){
-			if(is_array($v)) $v = "ARRAY";
-			error_log("\$_REQUEST[$k]=[$v]");
+
+		if(isset(self::$route['values']['a'])){
+			$a = self::$route['values']['a'];
+			unset(self::$route['values']['a']);
 		}
+		if(isset(self::$route['values']['api-action'])) {
+			$a = strtolower(self::$route['values']['api-action']);
+			unset( self::$route['values']['api-action']);
+		}
+
+		if(preg_match('/([A-Za-z0-9-_]+)\.([A-Za-z0-9-_]+)/', $a, $m)){
+			self::$route['controller_name'] = $m[1];
+			$a = $m[2];
+		}
+		
+		self::$route['action'] = $a;
+		//Load values
+		
+		error_log_dump($_REQUEST, '$_REQUEST');
+		
 
 		if( isset(self::$route['values']['api_return']) ){
 			self::$route['return_type'] = self::$route['values']['api_return'];
@@ -371,13 +377,7 @@ class bootloader {
 		}
 
 
-		if(isset(self::$route['values']['api-action'])) {
-			self::$route['action'] = strtolower(self::$route['values']['api-action']);
-			unset( self::$route['values']['api-action']);
-		}elseif( isset(self::$route['values']['a']) && (self::$route['action_type'] == 'runInclude')){
-			self::$route['action'] = strtolower(self::$route['values']['a']);
-			unset(self::$route['values']['a']);
-		}
+		
 
 	}
 	public static function hasModule($name){
