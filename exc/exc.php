@@ -3,7 +3,7 @@
 namespace exc;
 
 
-define('EXC_PATH', dirname(__FILE__) . '/');
+define('EXC_PATH', __DIR__ . '/');
 
 if( defined('STDIN') || in_array(PHP_SAPI, ['cli', 'cli-server', 'phpdbg'], TRUE) ) {
 	define('EXC_RUNMODE', 2); //is CLI
@@ -17,17 +17,15 @@ if(!defined('EXC_PATH_APPS_FOLDER')){
 	define('EXC_PATH_APPS_FOLDER', dirname(__DIR__) . "/");
 }
 
-
+require_once(EXC_PATH . "exc.helper.error.php");
 require_once(EXC_PATH . "exc.core.php");
-require_once(EXC_PATH . "exc.app.router.php");
 require_once(EXC_PATH . "exc.app.php");
 require_once(EXC_PATH . "exc.session.php");
 require_once(EXC_PATH . "exc.helper.js.php");
-//require_once($__here . "exc.io.files.php");
 
+error_log_dump($_SERVER);
 
-
-spl_autoload_register(function ($class) {
+spl_autoload_register(function ($class) { ///NST:MARK:FN:autoloader
 	error_log("auto_load[" . $class . "]");
 
 	if(substr($class, 0, 4) == 'exc\\'){
@@ -76,8 +74,6 @@ class bootloader {
 		\exc\app::init();
 		\exc\app::$RUNMODE = self::$RUNMODE;
 		
-		
-
 		if(self::$RUNMODE == self::RUN_MODE_CLI){
 			self::initFromCLI();
 		}else{
@@ -583,6 +579,69 @@ class path {
 			self::$up['asset'] = self::$up['app'] . 'assets/';
 		}		
 	}
+	public static function info($p){
+		$o = pathinfo($p);
+		$o['path'] = $p;
+		$o['extension'] = isset($o['extension']) ? strtolower($o['extension']) : '';
+		return $o;
+	}
+	public static function tempFile($prefix=null, $tempPath = null){
+		$p = (!is_null($prefix)) ? $prefix : '';
+		$pt = (!is_null($tempPath)) ? $tempPath : sys_get_temp_dir();
+		$f = tempnam($pt, $p);
+		return self::info($f);
+	}
+	public static function combine($p1, $p2){
+		if(is_array($p1)){
+			if(!isset($p1['path'])) return false;
+			$p = $p1['path'];
+		}elseif(is_string($p1)){
+			$p = $p1;
+		}else{
+			return '';
+		}
+
+		$parts = [];
+		if(is_array($p2)){
+			$parts = $p2;
+		}elseif( func_num_args() >= 2){
+			$parts = func_get_args();
+			array_shift($parts);
+		}
+
+		foreach($parts as $e){
+			if(substr($e, 0, 1) != '/'){
+				if(substr($p,-1,1) != '/') $p.= '/';
+			}
+			$p.= $e;
+		}
+		
+		return $p;
+	}
+	public static function copy($p1, $p2){
+		
+		if(is_array($p1)){
+			if(!isset($p1['path'])) return false;
+			$p = $p1['path'];
+		}elseif(is_string($p1)){
+			$p = $p1;
+		}else{
+			return false;
+		}
+
+		if(is_array($p2)){
+			if(!isset($p2['path'])) return false;
+			$d = $p2['path'];
+		}elseif(is_string($p2)){
+			$d = $p2;
+		}else{
+			return false;
+		}
+
+		if(!file_exists($p)) return false;
+		$ok = copy($p, $d);
+		return $ok;
+	}
 	public static function normalize($p){
 		if(strlen(self::$rootPath)) chdir(self::$rootPath);
 
@@ -611,7 +670,8 @@ class path {
 		}
 
 		$a = pathinfo($path);
-		$ext = isset($a['extension']) ? strtolower($a['extension']) : '';
+		$a['extension'] = isset($a['extension']) ? strtolower($a['extension']) : '';
+		
 		$name = $a['basename'];
 		
 		$out = [

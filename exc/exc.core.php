@@ -118,38 +118,13 @@ class base {
 		return true;
 	}
 }
-
-trait objectDecorated {
-	public function __call($key, $params){
-        if (isset($this->$key) && $this->$key instanceof \Closure) {
-            return call_user_func_array($this->$method, $params);
-        }
-	}
-}
-trait ObjectBase {
-	public function getOwnPropertyNames(){
-		return get_object_vars($this);
-	}
-	public function keys(){
-		$a = get_object_vars($this);
-		return array_keys($a);
-	}
-	public function hasOwnProperty($a){
-		if(isset($this->$a)) return true;
-		if(method_exists($this, $a)) return true;
-		return false;
-	}
-}
-trait objectExtendable {
+trait objectExtendable { ///NST:MARK:CLASS:objectExtendable
     public function __call($name, $args) {
         if (is_callable($this->$name)) {
 			return call_user_func_array($this->$name, $args);
         }else {
             return null;
         }
-    }
-    public function __setDISABLE($name, $value) {
-        $this->$name = is_callable($value) ? $value->bindTo($this, $this) : $value;
     }
 	public function delegate($name, $fn) {
 		if(!is_callable($fn)) return;

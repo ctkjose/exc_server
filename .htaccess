@@ -1,6 +1,6 @@
 #Security
 Options -Indexes
-<files app.php>
+<files app1.php>
 	order allow,deny
 	deny from all
 </files>

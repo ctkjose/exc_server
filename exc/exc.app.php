@@ -32,7 +32,7 @@ class app {
 		//error_log_dump(self::$firstResponder, '$firstResponder');
 	}
 	public static function init(){
-		\exc\controller\appController::init();
+	
 	}
 	public static function findPathForController($cn, $basePath = null){
 		$r = is_string($basePath) ? $basePath : EXC_PATH_BASE;
@@ -106,8 +106,6 @@ class app {
 	public static function runWithAction($a){
 		$app = self::$appController;
 
-
-
 		self::$scopeAction = \exc\app::$firstResponder->scopeName;
 		self::$scopeAction .= '.' . strtolower($a);
 
@@ -133,7 +131,6 @@ class app {
 			//self::runApplication($app);
 		}else{
 		
-			
 		}
 
 		error_log_dump(self::$firstResponder , 'firstResponder');

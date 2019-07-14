@@ -7,8 +7,8 @@ namespace exc\io\files {
 
 			$paths = [
 				'home' => (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : '') . '/',
-				'app' => (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : dirname(__FILE__)) . '/',
-				'exc' => (defined('EXC_PATH') ? EXC_PATH : dirname(__FILE__) . '/'),
+				'app' => (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : __DIR__) . '/',
+				'exc' => (defined('EXC_PATH') ? EXC_PATH : __DIR__ . '/'),
 				'includes' => []
 			];
 
