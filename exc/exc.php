@@ -10,36 +10,31 @@ if( defined('STDIN') || in_array(PHP_SAPI, ['cli', 'cli-server', 'phpdbg'], TRUE
 }else{
 	define('EXC_RUNMODE', 1); //is SAPI, WEB
 }
+
 if(file_exists(EXC_PATH . '/exc.config.php')){
 	include_once(EXC_PATH . '/exc.config.php');
 }
-if(!defined('EXC_PATH_APPS_FOLDER')){
-	define('EXC_PATH_APPS_FOLDER', dirname(__DIR__) . "/");
-}
+
 
 require_once(EXC_PATH . "helper.error.php");
+require_once(EXC_PATH . "loader.php");
 require_once(EXC_PATH . "core.php");
-require_once(EXC_PATH . "exc.app.php");
-require_once(EXC_PATH . "exc.session.php");
+require_once(EXC_PATH . "app.php");
+require_once(EXC_PATH . "session.php");
 require_once(EXC_PATH . "exc.helper.js.php");
 
 error_log_dump($_SERVER);
 
 spl_autoload_register(function ($class) { ///NST:MARK:FN:autoloader
-	error_log("auto_load[" . $class . "]");
-
+	
 	if(substr($class, 0, 4) == 'exc\\'){
 		$o = explode('\\', $class);
-		$cn = array_pop($o);
+		array_shift($o);
 		$f = implode('.', $o);
-		
-		if(file_exists(__DIR__ . '/' . $f . '.' . $cn . '.php')){
-			error_log("[EXC] AUTOLOAD " .  __DIR__ . '/' . $f . '.' . $cn . '.php');
-			include_once( __DIR__ . '/' . $f . '.' . $cn . '.php');
-			return;
-		}
 
-		if(count($o) > 1 && file_exists(__DIR__ . '/' . $f . '.php')){
+		error_log('auto_load[' . $class . '][' . $f . ']');
+		
+		if(file_exists(__DIR__ . '/' . $f . '.php')){
 			error_log("[EXC] AUTOLOAD " .   __DIR__ . '/' . $f . '.php');
 			include_once(__DIR__ . '/' . $f . '.php');
 			return;
@@ -82,14 +77,14 @@ class bootloader {
 
 
 		error_log_dump(self::$route, 'ROUTE');
-		exit;
-		if(!strlen(self::$route['controller_name']) || (!isset(self::$route['base_path']))){
+		
+		if(!strlen(self::$route['controller_name'])){
 			error_log("[EXC][BOOTSTRAP][ABORT] Nothing to do!");
 			exit;
 		}
 		
 		define('EXC_PATH_BASE', self::$route['base_path']);
-	
+		
 		
 		$fn = self::$route['action_type'];
 		if(method_exists('exc\bootloader', $fn)){
@@ -99,75 +94,13 @@ class bootloader {
 		
 
 	}
-
-	public static function runInclude($app){
-
-	}
-	public static function runPassthru($app){
-		error_log("@runPassThru--------------");
-		$r = \exc\router::instance();
-		error_log_dump($r);
-		$p = $r->route['base_path'] . $r->route['resource_path'] . $r->route['file'];
-		error_log("@runPassThru [" . $p . "]");
-		if(!file_exists($p)){
-			header("HTTP/1.0 404 Not Found");
-			print "";
-			die();
-		}
-
-		$mime = 'application/octet-stream';
-		switch($r->route['file_type']){
-			case "js":
-				$mime = 'text/javascript';
-				break;
-			case "css":
-				$mime = 'text/css';
-				break;
-			case "svg":
-				$mime = 'image/svg+html';
-				break;
-			case "png":
-				$mime = 'image/png';
-				break;
-			case "gif":
-				$mime = 'image/gif';
-				break;
-			case "jpeg":
-				$mime = 'image/jpeg';
-				break;
-			case "pdf":
-				$mime = 'application/pdf';
-				break;
-			case "zip":
-				$mime = 'application/zip';
-				break;
-			case "json":
-				$mime = 'application/json';
-				break;
-			case "xls":
-			case "xlsx":
-				$mime = 'application/vnd.ms-excel';
-				break;
-			case "csv":
-				$mime = 'text/csv';
-				break;
-		}
-		header('Content-Type: ' . $mime);
-		header('Content-Length: '.filesize($p));
-		
-		readfile($p);
-		die();
-	}
 	public static function runController(){
 
 		
 		error_log("[EXC][BOOTLOADER] Running controller");
-		if( isset(self::$route['base_path'])){
-			define('EXC_DIRECTORY_FOR_CONTROLLER', self::$route['base_path']);
-			if(!\exc\app::loadApp(self::$route['base_path'])){
-				error_log("[EXC][BOOTSTRAP][ERROR] Unable to load controller.app.php.");
-				exit;
-			}
+		if(!\exc\app::loadApp()){
+			error_log("[EXC][BOOTSTRAP][ERROR] Unable to load controller.app.php.");
+			exit;
 		}
 
 		$app = \exc\app::controller();
@@ -178,15 +111,8 @@ class bootloader {
 		if( isset(self::$route['controller_name']) && (self::$route['controller_name']!='app')){
 			//load a controller
 			$cn = self::$route['controller_name'];
-			$p = EXC_PATH_BASE;
-			if(strlen(self::$route['resource_path'])){
-				$p .= self::$route['resource_path'];
-			}
-			$file = 'controller.' . $cn . '.php';
-			if(substr($p,0,1) != '/') $p = '/' . $p;
-			if(substr($p,-1,1) != '/') $p .= '/';
-			$p.= $file;
 
+			$p = \exc\path::combine(EXC_PATH_APP, 'controller.' . $cn . '.php');
 			$f = \exc\path::normalize($p);
 			//error_log_dump($f, 'file');
 			if(!$f['exists']){
@@ -194,16 +120,13 @@ class bootloader {
 			}else{
 				\exc\options::key('/app/path/controller', $f['path']);
 				\exc\app::registerController($cn . 'Controller', $f['path']);
+				\exc\app::setFirstResponder($cn);
 			}
-
-			\exc\app::setFirstResponder($cn);
-
-		
 		}
 		
 		\exc\options::key('/app/controllerClass', $cn);
 
-		\exc\error_log_dump(options::$values, "options");
+		//\exc\error_log_dump(options::$values, '$options');
 		
 		if(self::$RUNMODE == self::RUN_MODE_WEB){
 			\exc\session::initialize();
@@ -216,110 +139,27 @@ class bootloader {
 
 		
 	}
-	public static function runApplication($app){
-		\exc\session::key("eas", 1);
-
-		
-		$app->appStart();
-		
-		
-		/*
-		if(is_array(options::$values['app']['manifest1'])){  //refactor...
-			foreach(options::$values['app']['manifest1'] as $e){
-				$url = ''; $wait = true; $type=null;
-
-				if(is_string($e)){
-					$url = $e;
-				}elseif(is_array($e) && isset($e['url'])){
-					$url = $e['url'];
-					if(isset($e['wait'])) $wait = $e['wait'];
-					if(isset($e['type'])) $type = $e['type'];
-				}
-
-				if($type=='export'){
-					\exc\manifest::addExport($url, $e['name'], $wait);
-				}elseif($type=='script'){
-					\exc\manifest::addScript($url, $wait);
-				}else{
-					\exc\manifest::addInclude($url, $wait);
-				}
-			}
-		}
-		*/
-		
-		//$p = options::$values['app']['paths']['controller_directory'] . 'assets/js/controller.app.js';
-		//$r = \exc\path::normalize($p);
-		//error_log_dump($r, 'controller.app.js');
-		//if($r['exists']){
-			//$appjs = file_get_contents($r['path']);
-			//\exc\manifest::addScript($r['url'], $wait);
-		//}
-	}
-	public static function detectRun(){
-
-		self::$route = [
-			'request_url' => $url,
-			'base_url'=>'', 'base_path'=>'',
-			
-			'action'=> 'default', 'action_type'=>'runPassthru',
-			'controller_name'=>'', 'controller_class'=>'', 'controller_url'=>'',
-			'file_name'=> '','file_type'=>'', 'file_path'=>'',
-			'method' => '',
-			'resource_path'=>'',
-			'return_type'=>'any',
-		];
-
-		
-	}
-	
-	public static function loadController(){
-		
-		if(!strlen(self::$route['controller_name'])) return;
-		
-		$af = self::$route['action'];
-		self::$route['controller_class'] = '';
-		
-		$fp = path::normalize( '.' . self::$route['base_url']);
-		self::$route['base_path'] = $fp['path'] . '/';
-		//error_log_dump($fp, 'filep');
-
-
-		$p = self::$route['base_path'];
-		if(strlen(self::$route['resource_path'])){
-			$p .= self::$route['resource_path'];
-		}
-		$file = 'controller.' . self::$route['controller_name'] . '.php';
-		if(substr($p,0,1) != '/') $p = '/' . $p;
-		if(substr($p,-1,1) != '/') $p .= '/';
-		$p.= $file;
-
-		$f = \exc\path::normalize($p);
-		//error_log_dump($f, 'file');
-		if(!$f['exists']){
-			error_log("EXC ROUTE FILE NOT FOUND::" . $f['path']);
-			return;
-		}
-
-		self::$route['file_type'] = 'php';
-		self::$route['file_name'] = $f['name'];
-		self::$route['file_path'] = $f['path'];
-		return true;
-	}
 	public static function initFromCLI(){
 		if( isset($_SERVER) && isset($_SERVER['PWD']) && (strlen($_SERVER['PWD']) > 0)){
 			$r = $_SERVER['PWD'];
-			if(substr($r, -1, 1) != '/') $r.= '/';
-			define('EXC_DOCUMENT_ROOT', $r);
+			define('EXC_DOCUMENT_ROOT', $r . '/');
+
+			define('EXC_PATH_REQUEST', EXC_DOCUMENT_ROOT);
+			\exc\path::setRoot(EXC_DOCUMENT_ROOT);
 		}
 		
-		\exc\path::setRoot(EXC_DOCUMENT_ROOT);
+		require(EXC_PATH . 'console.php');
 	}
 	public static function initFromHTTP(){
 
 		if( isset($_SERVER) && isset($_SERVER['DOCUMENT_ROOT']) && (strlen($_SERVER['DOCUMENT_ROOT']) > 0)){
 			$r = $_SERVER['DOCUMENT_ROOT'];
-			if(substr($r, -1, 1) != '/') $r.= '/';
-			define('EXC_DOCUMENT_ROOT', $r);
+			define('EXC_DOCUMENT_ROOT', $r . '/');
+		}
+
+		if( isset($_SERVER) && isset($_SERVER['SCRIPT_FILENAME']) && (strlen($_SERVER['SCRIPT_FILENAME']) > 0)){
+			$r = dirname($_SERVER['SCRIPT_FILENAME']) . '/';
+			define('EXC_PATH_REQUEST', $r);
 		}
 
 		\exc\path::setRoot(EXC_DOCUMENT_ROOT);
@@ -333,7 +173,7 @@ class bootloader {
 
 		self::$route['request_url'] = $_SERVER['REQUEST_URI'];
 		self::$route['base_url'] = '';
-		self::$route['base_path'] = dirname($_SERVER['REQUEST_URI']);
+		self::$route['base_path'] = dirname($_SERVER['REQUEST_URI']) . '/';
 
 
 		$a = 'default';
@@ -354,12 +194,11 @@ class bootloader {
 			$a = $m[2];
 		}
 		
-		self::$route['action'] = $a;
-		//Load values
+		self::$route['action'] = strtolower($a);
+	
+		//Load values	
+		//error_log_dump($_REQUEST, '$_REQUEST');
 		
-		error_log_dump($_REQUEST, '$_REQUEST');
-		
-
 		if( isset(self::$route['values']['api_return']) ){
 			self::$route['return_type'] = self::$route['values']['api_return'];
 			unset( self::$route['values']['api_return']);
@@ -375,71 +214,46 @@ class bootloader {
 			self::$route['state'] = json_decode(self::$route['values']['api_json_state'], true);
 			unset(self::$route['values']['api_json_state']);
 		}
-
-
-		
-
 	}
 	public static function hasModule($name){
 		if(array_key_exists($name,self::$modules)) return true;
 		return false;
 	}
-	public static function addModule($name, $params){
+	public static function addModule($entry, $params){
 
-		if(array_key_exists($name,self::$modules)) return true;
-
-		///TODO mode this to use \exc\path
-		$paths = [
-			'exc'=> EXC_PATH,
-			'app'=> '',
-			'file'=> EXC_DOCUMENT_ROOT,
-			'vendor'=> '',
-			'composer'=> '',
-		];
-
-		$paths['apps'] = defined('EXC_PATH_APP') ? EXC_PATH_APP : EXC_PATH_BASE;
-
-		$p = explode('://', $name);
-		$k = $p[0];
-		if(!array_key_exists($k, $paths)) return false;
-
-		$dir = $paths[$k];
-		$f = $p[1];
-		$fdir = (strpos($f,'/')!==false) ? dirname($f) : '';
-		$fn = basename($f);
-		
-		if(strpos($fn, ".php") !== false){
-			$f = $dir . $f;
-		}else{
-			$f = $dir . ((strlen($fdir) > 0)?$fdir . '/' : '') .  $fn . '.php';
+		$ns = '';
+		if(substr($entry, 0, 6) == 'exc://'){
+			if(substr($entry,-4, 4) != '.php') $entry .= '.php';
+			$ns = '\\exc';
 		}
 
-		$e = ['file'=> $f, 'ns'=> $fn, 'manager'=>false, 'cls'=>'', 'loaded'=>false];
+		error_log("[EXC] Loading Module $entry=[" . substr($entry,0, 5) . ']');
+		$info = \exc\path::normalize($entry);
+		if(!$info['exists']) return false; 
 
-		error_log("[EXC] Loading Module $fn, including " . $f);
-		error_log("in=[{$p[1]}] f=[$f], [$dir][$fdir][$fn]"); 
-
-		if(!file_exists($f)){
-			self::$modules[$name] = $e;
-			return false;
-		}
-
-		include_once($f);
-		$e['loaded'] = true;
-
-		$ns = '\\' . str_replace('.', '\\', $fn);
-		if( class_exists($ns . "\\manager") ){
-			$e['manager'] = true;
-			$e['cls'] = $ns . "\\manager";
-		}elseif( class_exists($ns) ){
-			$e['cls'] = $ns;
-		}else{
-			return false;
-		}
-
-		error_log("[EXC] Module class=" . $e['cls']);
+		$name = $info['basename'];
 		
 
+		
+		error_log("[EXC] Loading Module $entry, including " . $info['path']);
+		
+		if(	array_key_exists($name,self::$modules)){
+			$e = self::$modules[$name];
+		}else{
+			$e = ['name' => $name, 'path'=>$info['path'], 'loaded'=> false, 'manager'=> false, 'cls'=> '' ];
+
+			include_once($info['path']);
+			$ns .= '\\' . str_replace('.', '\\', str_replace('.php', '', $name));
+			if( class_exists($ns . "\\manager", false) ){
+				$e['manager'] = true;
+				$e['cls'] = $ns . "\\manager";
+			}elseif( class_exists($ns, false) ){
+				$e['cls'] = $ns;
+			}
+		}
+		
+		
+		
 		if(strlen($e['cls']) > 0){
 			$cls = $e['cls'];
 			if(method_exists($cls, "initialize")){
@@ -447,7 +261,12 @@ class bootloader {
 			}
 		}
 
-		self::$modules[$name] = $e;
+		//error_log("[EXC] Module class=" . $e['cls'] . ' ns=[' .  $ns . ']');
+
+		if($e['loaded']){
+			$e['loaded'] = true;
+			self::$modules[$name] = $e;
+		}
 		return true;
 	}
 }
@@ -579,6 +398,20 @@ class path {
 			self::$up['asset'] = self::$up['app'] . 'assets/';
 		}		
 	}
+	public static function pathFromArg($p1){
+		if(is_string($p1)) return $p1;
+		if(is_array($p1) && isset($p1['path'])) return $p1['path'];
+		return '';
+	}
+	public static function makeRelativeTo($path, $parent){
+		$p1 = self::pathFromArg($path);
+		$p2 = self::pathFromArg($parent);
+
+		if( strpos($p1, $p2) !== 0 ) return $p1;
+		$s = str_replace($p2, '', $p1);
+		//if(substr($s,0,1)!= '/') $s = '/' . $s;
+		return $s;
+	}
 	public static function info($p){
 		$o = pathinfo($p);
 		$o['path'] = $p;
@@ -592,14 +425,7 @@ class path {
 		return self::info($f);
 	}
 	public static function combine($p1, $p2){
-		if(is_array($p1)){
-			if(!isset($p1['path'])) return false;
-			$p = $p1['path'];
-		}elseif(is_string($p1)){
-			$p = $p1;
-		}else{
-			return '';
-		}
+		$p = self::pathFromArg($p1);
 
 		$parts = [];
 		if(is_array($p2)){
@@ -645,21 +471,13 @@ class path {
 	public static function normalize($p){
 		if(strlen(self::$rootPath)) chdir(self::$rootPath);
 
-
 		$url = '';
 		$path = $p;
 		$r = self::$rootPath;
 		$exists = false;
 
-		if(strtolower(substr($p, 0, 4)) == 'http'){
-			$url = $p;
-			$path = $p;
-		}elseif(substr($p, 0, 1) == '/'){
-			$path = $p;
-		}else{
-			foreach(self::$up as $k => $up){
-				$path = str_replace($k . '://', $up, $path);
-			}
+		foreach(self::$up as $k => $up){
+			$path = str_replace($k . '://', $up, $path);
 		}
 
 		$exists = false;
@@ -671,38 +489,10 @@ class path {
 
 		$a = pathinfo($path);
 		$a['extension'] = isset($a['extension']) ? strtolower($a['extension']) : '';
-		
-		$name = $a['basename'];
-		
-		$out = [
-			'in'=>$p, 'url'=>'', 'ext'=> $ext,
-			'path'=>$path, 'name'=>$name, 'dir'=>dirname($path) . '/',
-			'exists'=> $exists, 'isAsset'=> false, 'isController'=>false
-		];
-		if(strlen($url) == 0){
-			//map url
-			$url = str_replace(self::$rootPath, '', $a['dirname']);
-			if(substr($url,0,1) != '/') $url = '/' . $url;
-			if(substr($url,-1,1) != '/') $url .= '/';
+		$a['path'] = $path;
+		$a['exists'] = $exists;
 
-			if(preg_match("/^controller\.([A-Za-z0-9\_\-]+)\.php$/", $a['basename'], $m)){
-				$url.= 'c/' . $m[1];
-				$out['isController'] = true;
-			}elseif(preg_match("/\/assets\/([A-Za-z0-9-_]+)\/([A-Za-z0-9-_]+)\.(php|js|css|html|htm|pdf|csv|txt|md|png|jpg|svg|zip|xml)$/", $url . $a['basename'], $m)){
-				foreach(['/assets/js/', '/assets/css/'] as $sp){
-					if(strpos($url,$sp) !== false) $url = str_replace($sp, '/',$url);
-				}
-				$url.= 'a/' . $a['basename'];
-				$out['isAsset'] = true;
-			}else{
-				$url.= $a['basename'];
-			}
-		}
-		$out['url'] = $url;
-		
-		//error_log(print_r($out, true));
-		return $out;
+		return $a;
 	}
-
 }
 ?>

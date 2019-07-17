@@ -1,6 +1,6 @@
 <?php
 namespace exc {
-	class manager1 extends \exc\core\base {
+	class manager1 extends \exc\base {
 		public static $defaulView = null;
 		public static $options = ['paths'=>[]];
 		public static function initialize($options){

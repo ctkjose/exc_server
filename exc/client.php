@@ -436,21 +436,6 @@ class client {
 	public function setName($name){
 		self::$state['name'] = $name;
 	}
-	
-	public function setDeafultController($className, $url = null){ //TODOFIX using REA_BASE_PATH
-		$e = ['name'=> $className];
-
-		if(!empty($url)){
-			$path = \exc\path::normalize($url);
-
-			if(!is_array($path) || !isset($path['url']) || (strlen($path['url'])==0) ) return;
-			//$e['js'] = file_get_contents(REA_BASE_PATH . substr($path['url'],1));
-
-			$e['js'] = file_get_contents($path['path']);
-		}
-
-		self::$state['moduleController'] = $e;
-	}
 	public function addDataset($name, $path){
 		if(isset(self::$datasets_paths[$path])){
 			self::$state['datasets'][$name] = self::$datasets_paths[$path]['uid'];

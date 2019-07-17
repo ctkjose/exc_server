@@ -1,7 +1,7 @@
 <?php
 namespace exc;
 
-class session extends \exc\core\base {
+class session extends \exc\base {
 	public static $store = ["ms"=>[]];
 	public static $enabled = false;
 	public static function initialize(){
@@ -18,7 +18,7 @@ class session extends \exc\core\base {
 		];
 
 		if(isset(\exc\options::$values['app']['session'])){
-			$ops = \exc\core\base::extend($ops,\exc\options::$values['app']['session']);
+			$ops = \exc\base::extend($ops,\exc\options::$values['app']['session']);
 		}
 
 		$app = \exc\app::controller();
@@ -30,7 +30,7 @@ class session extends \exc\core\base {
 				$_SESSION['BS120'] = \exc\session::$store;
 			};
 
-			if($app) $app->on('requestEnd', $fn);
+			if($app) $app->on('appEnd', $fn);
 
 			if(isset($_SESSION['BS120'])){
 				self::$store = $_SESSION['BS120'];

@@ -1,6 +1,6 @@
 <?php
 namespace exc\ui {
-	class manager extends \exc\core\base {
+	class manager extends \exc\base {
 		public static $defaulView = null;
 		public static function initialize($options){
 			error_log("@exc/ui/manager/initialize()");

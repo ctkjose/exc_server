@@ -5,6 +5,7 @@ class app {
 	public static $appController = null;
 	public static $firstResponder = null;
 	public static $scopeAction = 'main.default';
+	public static $routeOptions = [];
 	public static $controllers = [];
 	
 	public static $app_state = [ 'header'=>[], 'buffer'=>'', 'commited'=>false, 'config'=>[] ];
@@ -14,32 +15,38 @@ class app {
 		return self::$appController;
 	}
 	public static function setFirstResponder($any){
-		$cn = $any;
-		if(!isset(self::$controllers[$cn])) return; //fail silently?
+		
+		if(is_string($any)){
+			$cn = $any;
+			if(!isset(self::$controllers[$cn])) return; //fail silently?
+			$o = self::$controllers[$cn]['instance'];
+		}elseif(is_object($any) && \exc\controller::isControllerInstance($any)){
+			$cn = str_ireplace('controller', '', get_class($any));
+			$o = $any;
+		}else{
+			return;
+		}
 
-		$o = self::$controllers[$cn]['instance'];
 		if(!self::$appController->performMessage("canBecomeFirstResponder", [$cn, $o])) return;
 		self::$firstResponder = $o;
 		
 		\exc\options::$values['app']['firstresponder'] = $cn;
 
-		if(self::$firstResponder instanceof \exc\controller\viewController){ //do we need a client
-			//if( \exc\options::key('/app/with_client') == 1) return;
-			//\exc\bootloader::addModule('exc://exc.ui', []);
-		}
-
-		
 		//error_log_dump(self::$firstResponder, '$firstResponder');
 	}
 	public static function init(){
 	
 	}
 	public static function findPathForController($cn, $basePath = null){
-		$r = is_string($basePath) ? $basePath : EXC_PATH_BASE;
+		$r = is_string($basePath) ? $basePath : EXC_PATH_REQUEST;
 		chdir($r);
 
 		$cn = 'controller.' . $cn  . '.php';
 		$p = realpath('./' . $cn);
+		if($p === false){
+			$p = realpath('./src/' . $cn);
+		}
+
 		while($p === false){
 			$r = realpath('../');
 			if($r === false) break;
@@ -54,23 +61,31 @@ class app {
 
 		return $p;
 	}
-	public static function loadApp($basePath = null){
+	public static function loadApp(){
 
-		$p = self::findPathForController('app', $basePath);
-		$app_path = $basePath;
-		if($p === false) {
-			$o = new \exc\controller\appController();
-			\exc\options::key('/app/path/base', $basePath);
-
-
-			
-		}else{
-			error_log('[EXC][APP] FOUND APP CONTROLLER AT [' . $p . ']');
-			$app_path = dirname($p) . '/';
-			\exc\options::key('/app/path/controller', $p);
-			$o = \exc\core\controller::loadControllerWithPath('appController', $p);
+		$basePath = EXC_PATH_REQUEST;
+		if(defined('SRC_PATH')){
+			$basePath = realpath(SRC_PATH);
 		}
 
+		if( class_exists('\appController') ){
+			$o = new \appController();
+			$app_path = EXC_PATH_REQUEST;
+		}else{
+			$p = self::findPathForController('app', $basePath);
+			
+			if($p === false) {
+				$o = new \exc\controller\appController();
+				$app_path = EXC_DIRECTORY;
+			}else{
+				error_log('[EXC][APP] FOUND APP CONTROLLER AT [' . $p . ']');
+				$app_path = dirname($p) . '/';
+				\exc\options::key('/app/path/controller', $p);
+
+				$o = \exc\controller::loadControllerWithPath('appController', $p);
+			}
+		}
+			
 		if(!$o){
 			error_log('[EXC][APP][ERROR] Unable to create instance of appController');
 			return false;
@@ -78,6 +93,8 @@ class app {
 
 		define('EXC_PATH_APP', $app_path);
 		\exc\path::addUP('app', $app_path);
+		\exc\path::addUP('vendor', $app_path . 'vendor/');
+
 		\exc\options::key('/app/path/base', $app_path );
 
 		self::$appController = $o;
@@ -88,38 +105,47 @@ class app {
 		if( method_exists($o, 'config') ){
 			$options = call_user_func([$o, 'config'],[]);
 
-			if(is_array($options)){
-				
-				if(is_array($options['using'])){
-					\exc\bootloader::processOptionUsing($options['using']);
-				}
-				
+			if(is_array($options)){				
 				foreach($options as $k=>$v){
 					\exc\options::$values['app'][$k] = $v;
 				}
 			}
 		}
 		
-
+		self::processConfigOptions(\exc\options::$values['app']);
+		
 		return true;
+	}
+	public static function processConfigOptions($entries){
+		if(isset($entries['use'])){
+			foreach($entries['use'] as $k=>$params){
+				\exc\bootloader::addModule($k,$params);
+			}
+		}
+		if(isset($entries['controllers'])){
+			foreach($entries['controllers'] as $k=>$path){
+				$p = \exc\path::normalize($path);
+				if(!$p['exists']) continue;
+				self::registerController($k, $p['path']);
+			}
+		}
+	}
+	public static function getOptionsForRoute($scope='*'){
+		$out = [];
+
+		if(!is_array(\exc\options::$values['app']['route'])) return $out;
+		
+		foreach(\exc\options::$values['app']['route'] as $ascope => $set){
+			if(strtolower($ascope) != $scope && $ascope != '*') continue;
+			foreach($set as $k=>$entries){
+				if(!array_key_exists($k, $out)) $out[$k] = [];
+				$out[$k] = array_merge($out[$k], $entries);
+			}
+		}
+		return $out;
 	}
 	public static function runWithAction($a){
 		$app = self::$appController;
-
-		self::$scopeAction = \exc\app::$firstResponder->scopeName;
-		self::$scopeAction .= '.' . strtolower($a);
-
-		$app->publish('appInit', []);
-		
-		
-		if(isset(\exc\bootloader::$route['request_url'])){
-			$app->publish('withRequestURL', [\exc\bootloader::$route['request_url']]);
-		}
-
-		if(!\exc\session::hasKey('AISR')){
-			error_log('[EXC][APP] Forcing action AppStart instead of [' . $a . ']');
-			//$a = 'AppStart';
-		}
 
 		$a1 = $app->performMessage("willDispatchAction", [$a] );
 		if(is_string($a1) && strlen($a1) && ($a!=$a1) ){
@@ -127,14 +153,19 @@ class app {
 			$a = $a1;
 		}
 
-		if(!\exc\session::hasKey('eas')){
-			//self::runApplication($app);
-		}else{
+		self::$scopeAction = \exc\app::$firstResponder->scopeName;
+		self::$scopeAction .= '.' . strtolower($a);
+
+		self::$routeOptions = self::getOptionsForRoute(self::$scopeAction);
+
+		$app->publish('appInit', []);
 		
-		}
+		self::processConfigOptions(self::$routeOptions);
+		
+		
 
 		error_log_dump(self::$firstResponder , 'firstResponder');
-		if( \exc\core\controller::isControllerInstance(self::$firstResponder) ){
+		if( \exc\controller::isControllerInstance(self::$firstResponder) ){
 			self::$firstResponder->performMessage('action_' . $a,[]);
 		}
 
@@ -154,7 +185,7 @@ class app {
 			if(!is_null($p)){
 				$cp = realpath($p);
 				if($cp === false) return;
-				$o = \exc\core\controller::loadControllerWithPath($cc, $p);
+				$o = \exc\controller::loadControllerWithPath($cc, $p);
 			}else{
 				if(!class_exists($cc)) return;
 				if( substr($cc, 0,1) != '\\') $cc = '\\' . $cc;
@@ -168,7 +199,7 @@ class app {
 		}
 
 		if(is_null($o)) return;
-		if( !\exc\core\controller::isControllerInstance($o) ) return;
+		if( !\exc\controller::isControllerInstance($o) ) return;
 
 		$o->scopeName = $cn;
 
@@ -186,11 +217,12 @@ class app {
 }
 
 
+
 } //namespace exc
 namespace exc\controller {
 
 
-class appController extends \exc\core\controller {
+class appController extends \exc\controller {
 	
 	public $scopeName = 'app';
 	public static $app_state = [ 'headers'=>[], 'buffer'=>'', 'commited'=>false, 'ended'=>false, 'config'=>[] ];
@@ -496,7 +528,7 @@ class appController extends \exc\core\controller {
 			self::commit();
 		}
 
-		$this->publish("requestEnd",[]);
+		$this->publish("appEnd",[]);
 
 		//flush();
 		exit;
@@ -517,8 +549,8 @@ class appController extends \exc\core\controller {
 	public function abort(){
 		self::$app_state['ended'] = true;
 
-		$this->publish("requestAbort", []);
-		$this->publish("requestEnd", []);
+		$this->publish("appAbort", []);
+		$this->publish("appEnd", []);
 		flush();
 		exit;
 	}
@@ -540,8 +572,7 @@ class appController extends \exc\core\controller {
 		$this->commit($data);
 		$this->end();
 	}
-	public function sendDownloadWithFile($mime, $file){ ///FIXME
-
+	public function sendDownloadWithFile($mime, $file){ ///FIXMEs
 		if($app_state['commited']) return;
 
 		$this->header('content-type', $mime);
@@ -553,13 +584,7 @@ class appController extends \exc\core\controller {
 		self::$app_state['commited'] = true;
 
 		$size = filesize($filename);
-		$fp = fopen($filename, "r");
-		while( !feof($fp) ){
-			print fread($fp, 65536);
-			flush(); // this is essential for large downloads
-		}
-		fclose($fp);
-
+		readfile($filename);
 		$this->end();
 	}
 	public function write($a){
@@ -570,10 +595,11 @@ class appController extends \exc\core\controller {
 		}
 	}
 }
-class processController extends \exc\core\controller {
+class processController extends \exc\controller {
 	public $location = '';
 	public $scope = '';
 
+	
 	public static function run(){
 
 	}
@@ -581,7 +607,7 @@ class processController extends \exc\core\controller {
 		return \exc\app::controller();
 	}
 }
-class viewController extends \exc\core\controller {
+class viewController extends \exc\controller {
 	public $location = '';
 	public $scope = '';
 

@@ -292,7 +292,7 @@ namespace exc\helper\dictionary {
 	//Key Value Pairs Interface and Helpers
 	//implements a flat Key Value Store
 	class kvMapper {
-		use \exc\helper\dictionary\iterator, \exc\core\objectExtendable;
+		use \exc\helper\dictionary\iterator, \exc\objectExtendable;
 
 		public $values =[];
 		public $idx=0;
@@ -389,7 +389,7 @@ namespace exc\helper\dictionary {
 }
 namespace exc\helper {
 	class dictionary {
-		use \exc\helper\dictionary\iterator, \exc\core\objectExtendable;
+		use \exc\helper\dictionary\iterator, \exc\objectExtendable;
 
 		public $idx = 0;
 		public $values =[];

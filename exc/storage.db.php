@@ -1,7 +1,7 @@
 <?php
 namespace exc\storage {
 
-class db extends \exc\core\base {
+class db extends \exc\base {
 	public static $cnx = [];
 	public $driver = 'generic';
 	public $ready = false;
@@ -20,7 +20,7 @@ class db extends \exc\core\base {
 	}
 	public static function initialize($options){
 		//error_log("@exc.db.initialize()");
-		//reasg_dev_dump($options, 'db.options');
+		\exc\error_log_dump($options, 'db.options');
 
 		if(!is_array($options)) return;
 		if(isset($options['connections']) && is_array($options['connections'])){
@@ -29,7 +29,7 @@ class db extends \exc\core\base {
 			}
 		}
 
-		//reasg_dev_dump(self::$cnx, 'db.cnx');
+		//\exc\error_log_dump(self::$cnx, 'db.cnx');
 	}
 	public static function addConnectionOption($connName, $cfg){
 		if(is_string($cfg)){
@@ -76,7 +76,7 @@ class db extends \exc\core\base {
 	public static function loadDriver($driver){
 		$cls = '\\exc\\storage\\dbDriver' . $driver;
 		if(!class_exists($driver) ){
-			$f = EXC_DIRECTORY . 'storage/exc.storage.' . strtolower($driver) . '.php';
+			$f = EXC_DIRECTORY . 'storage/db.' . strtolower($driver) . '.php';
 			if(file_exists($f)) include_once($f);
 		}
 	}

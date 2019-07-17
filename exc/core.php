@@ -1,5 +1,5 @@
 <?php
-namespace exc\core;
+namespace exc;
 
 if( defined('EXCSERVERMODE') ){
 	define('REASG_ENGINE_PATH', dirname(dirname(__FILE__)) . '/');
@@ -114,7 +114,7 @@ class base {
 	}
 	public static function isBaseInstance($o){
 		if(!is_object($o)) return false;
-		if(!is_a($o, 'exc\core\base')) return false;
+		if(!is_a($o, 'exc\base')) return false;
 		return true;
 	}
 }
@@ -150,13 +150,13 @@ trait objectExtendable { ///NST:MARK:CLASS:objectExtendable
 	}
 }
 
-class controller extends \exc\core\base {
-	use \exc\core\objectExtendable;
+class controller extends \exc\base {
+	use \exc\objectExtendable;
 	public $scopeName = 'any';
 	private $event_map = [];
 	public static function isControllerInstance($o){
 		if(!is_object($o)) return false;
-		if(!is_a($o, 'exc\core\controller')) return false;
+		if(!is_a($o, 'exc\controller')) return false;
 		return true;
 	}
 	public static function loadControllerWithPath($class, $path){
