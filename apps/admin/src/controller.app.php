@@ -5,43 +5,39 @@ class appController extends \exc\controller\appController {
 		$options = [];
 
 		$options['route'] = [ //options for individual routes...
-			'*' => [ //use wildcard for all routes
-				'use'=> [
-					"exc://storage.db"=>[
-						"connections"=>[
-							"auth" => ["driver"=>"mysql", "host"=>"127.0.0.1", "port"=>3306, "dbname"=>"exc_auth", "username"=>"root","password"=>"R00t!23"],
-							"test1" => ["driver"=>"mysql", "host"=>"192.168.100.175", "port"=>3306, "dbname"=>"testdb", "username"=>"ctk","password"=>"jose"]
-						],
-					],
-				],
-				'view.copy'=> [ //add to the view
-					['type'=>'js', "url"=>'app://assets/js/tests.js'], //global code
-				],
-				'extension.auth'=>[
-					'require.login' => true,
-					'db.connection' => 'auth',
-				]
-			],
 			'app.view01'=>[
 				'extension.auth'=>[
 					'require.login' => false,
+					'require.roles' => ['role2', 'role3']
+				],
+				'view.copy'=> [ //add to the view
+					['type'=>'js', "url"=>'app://assets/js/lib1.js'], 
 				],
 			]
 		];
 
-		
+		$options['n'] = [
+			'n1'=> ["n"=>"jose", 'k'=>'99'],
+			'n2'=> ["n"=>"jose2", 'k'=>'88'],
+		];
+
+		$options['use'] = [
+			"exc://storage.db"=>[
+				"connections"=>[
+					"auth" => ["driver"=>"mysql", "host"=>"127.0.0.1", "port"=>3306, "dbname"=>"exc_auth", "username"=>"root","password"=>"R00t!23"],
+					"test1" => ["driver"=>"mysql", "host"=>"192.168.100.175", "port"=>3306, "dbname"=>"testdb", "username"=>"ctk","password"=>"jose"]
+				],
+			],
+		];
 		$options['extension.auth'] = [
-			'test1'=> "jose2",
+			'require.login' => false,
+			'db.connection' => 'auth',
+			'require.roles' => ['role1']
 		];
 
 		//files to include in your default view
 		$options['view.copy'] = [
-			'*' => [ //copy in all views
-				['type'=>'js', "url"=>'app://assets/js/tests.js'], //global code
-			],
-			'app.view01' => [
-				['type'=>'js', "url"=>'app://assets/js/lib1.js', 'name'=>'mylib'], //an export of a CommonJS Module
-			]
+			['type'=>'js', "url"=>'app://assets/js/tests.js'], //global code
 		];
 		return $options;
 	}
@@ -65,8 +61,28 @@ class appController extends \exc\controller\appController {
 		//$this->makeViewDefault($view);
 		
 		$this->makeViewDefault('default');
-		\exc\error_log_dump(\exc\app::$scopeAction);
+		//\exc\error_log_dump(\exc\app::$scopeAction);
 		
+		$client = $this->client();	
+		$client->data['v1'] = 'jose';
+		$client->publish("testStartMessage", ['carrier'=> 'USPS', 'cost'=>50.25]);
+		$client->showAlert("hello jose");
+		
+	}
+	public function onAction_testAction(){
+		error_log("--- @appController->action_testAction() --- ======================================================");
+		
+		$client = \exc\client::instance();	
+		//error_log("fn=" . $client->session("fn"));
+
+		//\exc\error_log_dump($client, '$client');
+		$client->data['record'] = ["name"=> "jose1", "lname"=>"cuevas garcia"];
+		$client->data['a'] = 'joe';
+		
+		$client->publish("testMessage", ['carrier'=> 'USPS', 'cost'=>50.25]);
+		$client->setResponseData(['name'=>'Jose', 'v'=>35]);
+
+		$client->done();
 	}
 	public function testAuth(){
 

@@ -1,17 +1,19 @@
+//exc interaction
 (function(d){
 var w = function(){
 	if(!core || exc.app.state.appStatus != 10){
 		setTimeout(function(){ w(); }, 200);
 		return;
 	}
-	{{jsr}}
+	
+	var st = {{jsd}};
 
-	{{js}}
-	if(!st || st._bst == []._) return;
-//	console.log("EXC BACKEND INTERACTION RECEIVED");
-//	console.log(st);
+	console.log("EXC BACKEND INTERACTION RECEIVED");
+	console.log(st);
 	exc.app.loadInteraction(st);
 };
 w();
 })(document);
-{{payload}}
+
+var nd = document.getElementById("ecjs");
+if(nd) nd.parentNode.removeChild(nd);

@@ -2,7 +2,7 @@ self.app = {
 	opSessionName: "myAddData",
 	manifest: {
 		require: [
-			{controller: "loginController", url: "../a/js/controller.login.js", wait: true},
+			{controller: "loginController", url: "js/controller.login.js", wait: true},
 		]
 	},
 	initialize: function(){
@@ -21,9 +21,11 @@ self.app = {
 		//called if loading of app failed
 		alert("Sorry unable to load this application. Please resfresh or try later.");
 	},
-	onTest: function(){
+	onTest: function(msg){
 		console.log("@app.onTest1()");
 		console.log(arguments);
+
+		
 	},
 	onDoRecordEditDone: function(){
 		console.log("@app.onDoRecordEditDone()");
@@ -37,9 +39,3 @@ self.app = {
 		console.log("@app.loginUser_change() %o", msg);
 	},
 };
-
-
-function testLogin(){
-	exc.app.stage.show("loginView");
-
-}
